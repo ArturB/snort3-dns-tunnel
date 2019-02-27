@@ -1,1 +1,0 @@
-T2.1 Napisać detektor aktywnego skanowania hosta. Sprawdzić jego skuteczność wobec wybranych metod skanowania.
