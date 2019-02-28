@@ -6,6 +6,7 @@ Skład zespołu:
 
 ## Temat
 <s> T2.1 Napisać detektor aktywnego skanowania hosta. Sprawdzić jego skuteczność wobec wybranych metod skanowania. </s>
+
 T2.1 Napisać moduł Snorta wykrywający steganograficzną transmisję danych metodą DNS exfiltration. Sprawdzić jego skuteczność. 
 
 ## Topologia sieci demonstracyjnej
