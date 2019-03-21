@@ -1,0 +1,26 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+
+  config.vm.define "N2" do |n2|
+    n2.vm.box = "fedora/29-cloud-base"
+    n2.vm.provider "virtualbox" do |n2vbox|
+      n2vbox.gui = true
+    end    
+    n2.vm.provision "shell", path: "n2.sh"
+  end
+
+  config.vm.define "S2" do |s2|
+    s2.vm.box = "fedora/29-cloud-base"
+    s2.vm.provider "virtualbox" do |s2vbox|
+      s2vbox.gui = true
+    end    
+    s2.vm.provision "shell", path: "s2.sh"
+  end
+
+end
