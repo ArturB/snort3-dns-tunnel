@@ -1,0 +1,1343 @@
+
+=== ack
+
+
+What: rule option to match on TCP ack numbers
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *ack.~range*: check if TCP ack value is 'value | min<>max | <max | >min' { 0: }
+
+=== appids
+
+
+What: detection option for application ids
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *appids.~*: comma separated list of application names
+
+=== asn1
+
+
+What: rule option for asn1 detection
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *asn1.bitstring_overflow*: detects invalid bitstring encodings that are known to be remotely exploitable
+* implied *asn1.double_overflow*: detects a double ASCII encoding that is larger than a standard buffer
+* implied *asn1.print*: dump decode data to console; always true
+* int *asn1.oversize_length*: compares ASN.1 type lengths with the supplied argument { 0:max32 }
+* int *asn1.absolute_offset*: absolute offset from the beginning of the packet { 0:65535 }
+* int *asn1.relative_offset*: relative offset from the cursor { -65535:65535 }
+
+=== base64_decode
+
+
+What: rule option to decode base64 data - must be used with base64_data option
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *base64_decode.bytes*: number of base64 encoded bytes to decode { 1:max32 }
+* int *base64_decode.offset* = 0: bytes past start of buffer to start decoding { 0:max32 }
+* implied *base64_decode.relative*: apply offset to cursor instead of start of buffer
+
+=== bufferlen
+
+
+What: rule option to check length of current buffer
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *bufferlen.~range*: check that length of current buffer is in given range { 0:65535 }
+
+=== byte_extract
+
+
+What: rule option to convert data to an integer variable
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *byte_extract.~count*: number of bytes to pick up from the buffer { 1:10 }
+* int *byte_extract.~offset*: number of bytes into the buffer to start processing { -65535:65535 }
+* string *byte_extract.~name*: name of the variable that will be used in other rule options
+* implied *byte_extract.relative*: offset from cursor instead of start of buffer
+* int *byte_extract.multiplier* = 1: scale extracted value by given amount { 1:65535 }
+* int *byte_extract.align* = 0: round the number of converted bytes up to the next 2- or 4-byte boundary { 0:4 }
+* implied *byte_extract.big*: big endian
+* implied *byte_extract.little*: little endian
+* implied *byte_extract.dce*: dcerpc2 determines endianness
+* implied *byte_extract.string*: convert from string
+* implied *byte_extract.hex*: convert from hex string
+* implied *byte_extract.oct*: convert from octal string
+* implied *byte_extract.dec*: convert from decimal string
+* int *byte_extract.bitmask*: applies as an AND to the extracted value before storage in 'name' { 0x1:0xFFFFFFFF }
+
+=== byte_jump
+
+
+What: rule option to move the detection cursor
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *byte_jump.~count*: number of bytes to pick up from the buffer { 0:10 }
+* string *byte_jump.~offset*: variable name or number of bytes into the buffer to start processing
+* implied *byte_jump.relative*: offset from cursor instead of start of buffer
+* implied *byte_jump.from_beginning*: jump from start of buffer instead of cursor
+* implied *byte_jump.from_end*: jump backward from end of buffer
+* int *byte_jump.multiplier* = 1: scale extracted value by given amount { 1:65535 }
+* int *byte_jump.align* = 0: round the number of converted bytes up to the next 2- or 4-byte boundary { 0:4 }
+* string *byte_jump.post_offset*: skip forward or backward (positive or negative value) by variable name or number of bytes after the other jump options have been applied
+* implied *byte_jump.big*: big endian
+* implied *byte_jump.little*: little endian
+* implied *byte_jump.dce*: dcerpc2 determines endianness
+* implied *byte_jump.string*: convert from string
+* implied *byte_jump.hex*: convert from hex string
+* implied *byte_jump.oct*: convert from octal string
+* implied *byte_jump.dec*: convert from decimal string
+* int *byte_jump.bitmask*: applies as an AND prior to evaluation { 0x1:0xFFFFFFFF }
+
+=== byte_math
+
+
+What: rule option to perform mathematical operations on extracted value and a specified value or existing variable
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *byte_math.bytes*: number of bytes to pick up from the buffer { 1:10 }
+* string *byte_math.offset*: number of bytes into the buffer to start processing
+* enum *byte_math.oper*: mathematical operation to perform { +|-|*|/|<<|>> }
+* string *byte_math.rvalue*: value to use mathematical operation against
+* string *byte_math.result*: name of the variable to store the result
+* implied *byte_math.relative*: offset from cursor instead of start of buffer
+* enum *byte_math.endian*: specify big/little endian { big|little }
+* implied *byte_math.dce*: dcerpc2 determines endianness
+* enum *byte_math.string*: convert extracted string to dec/hex/oct { hex|dec|oct }
+* int *byte_math.bitmask*: applies as bitwise AND to the extracted value before storage in 'name' { 0x1:0xFFFFFFFF }
+
+=== byte_test
+
+
+What: rule option to convert data to integer and compare
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *byte_test.~count*: number of bytes to pick up from the buffer { 1:10 }
+* string *byte_test.~operator*: operation to perform to test the value
+* string *byte_test.~compare*: variable name or value to test the converted result against
+* string *byte_test.~offset*: variable name or number of bytes into the payload to start processing
+* implied *byte_test.relative*: offset from cursor instead of start of buffer
+* implied *byte_test.big*: big endian
+* implied *byte_test.little*: little endian
+* implied *byte_test.dce*: dcerpc2 determines endianness
+* implied *byte_test.string*: convert from string
+* implied *byte_test.hex*: convert from hex string
+* implied *byte_test.oct*: convert from octal string
+* implied *byte_test.dec*: convert from decimal string
+* int *byte_test.bitmask*: applies as an AND prior to evaluation { 0x1:0xFFFFFFFF }
+
+=== classtype
+
+
+What: general rule option for rule classification
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *classtype.~*: classification for this rule
+
+=== content
+
+
+What: payload rule option for basic pattern matching
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *content.~data*: data to match
+* implied *content.nocase*: case insensitive match
+* implied *content.fast_pattern*: use this content in the fast pattern matcher instead of the content selected by default
+* int *content.fast_pattern_offset* = 0: number of leading characters of this content the fast pattern matcher should exclude { 0:65535 }
+* int *content.fast_pattern_length*: maximum number of characters from this content the fast pattern matcher should use { 1:65535 }
+* string *content.offset*: var or number of bytes from start of buffer to start search
+* string *content.depth*: var or maximum number of bytes to search from beginning of buffer
+* string *content.distance*: var or number of bytes from cursor to start search
+* string *content.within*: var or maximum number of bytes to search from cursor
+
+=== cvs
+
+
+What: payload rule option for detecting specific attacks
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *cvs.invalid-entry*: looks for an invalid Entry string
+
+=== dce_iface
+
+
+What: detection option to check dcerpc interface
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *dce_iface.uuid*: match given dcerpc uuid
+* interval *dce_iface.version*: interface version { 0: }
+* implied *dce_iface.any_frag*: match on any fragment
+
+=== dce_opnum
+
+
+What: detection option to check dcerpc operation number
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *dce_opnum.~*: match given dcerpc operation number, range or list
+
+=== dce_stub_data
+
+
+What: sets the cursor to dcerpc stub data
+
+Type: ips_option
+
+Usage: detect
+
+=== detection_filter
+
+
+What: rule option to require multiple hits before a rule generates an event
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* enum *detection_filter.track*: track hits by source or destination IP address { by_src | by_dst }
+* int *detection_filter.count*: hits in interval before allowing the rule to fire { 1:max32 }
+* int *detection_filter.seconds*: length of interval to count hits { 1:max32 }
+
+=== dnp3_data
+
+
+What: sets the cursor to dnp3 data
+
+Type: ips_option
+
+Usage: detect
+
+=== dnp3_func
+
+
+What: detection option to check DNP3 function code
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *dnp3_func.~*: match DNP3 function code or name
+
+=== dnp3_ind
+
+
+What: detection option to check DNP3 indicator flags
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *dnp3_ind.~*: match given DNP3 indicator flags
+
+=== dnp3_obj
+
+
+What: detection option to check DNP3 object headers
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *dnp3_obj.group* = 0: match given DNP3 object header group { 0:255 }
+* int *dnp3_obj.var* = 0: match given DNP3 object header var { 0:255 }
+
+=== dsize
+
+
+What: rule option to test payload size
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *dsize.~range*: check if packet payload size is in the given range { 0:65535 }
+
+=== file_data
+
+
+What: rule option to set detection cursor to file data
+
+Type: ips_option
+
+Usage: detect
+
+=== file_type
+
+
+What: rule option to check file type
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *file_type.~*: list of file type IDs to match
+
+=== flags
+
+
+What: rule option to test TCP control flags
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *flags.~test_flags*: these flags are tested
+* string *flags.~mask_flags*: these flags are don't cares
+
+=== flow
+
+
+What: rule option to check session properties
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *flow.to_client*: match on server responses
+* implied *flow.to_server*: match on client requests
+* implied *flow.from_client*: same as to_server
+* implied *flow.from_server*: same as to_client
+* implied *flow.established*: match only during data transfer phase
+* implied *flow.not_established*: match only outside data transfer phase
+* implied *flow.stateless*: match regardless of stream state
+* implied *flow.no_stream*: match on raw packets only
+* implied *flow.only_stream*: match on reassembled packets only
+* implied *flow.no_frag*: match on raw packets only
+* implied *flow.only_frag*: match on defragmented packets only
+
+=== flowbits
+
+
+What: rule option to set and test arbitrary boolean flags
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *flowbits.~command*: set|reset|isset|etc.
+* string *flowbits.~arg1*: bits or group
+* string *flowbits.~arg2*: group if arg1 is bits
+
+=== fragbits
+
+
+What: rule option to test IP frag flags
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *fragbits.~flags*: these flags are tested
+
+=== fragoffset
+
+
+What: rule option to test IP frag offset
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *fragoffset.~range*: check if ip fragment offset is in given range { 0:8192 }
+
+=== gid
+
+
+What: rule option specifying rule generator
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *gid.~*: generator id { 1:max32 }
+
+=== gtp_info
+
+
+What: rule option to check gtp info element
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *gtp_info.~*: info element to match
+
+=== gtp_type
+
+
+What: rule option to check gtp types
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *gtp_type.~*: list of types to match
+
+=== gtp_version
+
+
+What: rule option to check GTP version
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *gtp_version.~*: version to match { 0:2 }
+
+=== http2_frame_data
+
+
+What: rule option to see HTTP/2 frame body
+
+Type: ips_option
+
+Usage: detect
+
+=== http2_frame_header
+
+
+What: rule option to see 9-octet HTTP/2 frame header
+
+Type: ips_option
+
+Usage: detect
+
+=== http_client_body
+
+
+What: rule option to set the detection cursor to the request body
+
+Type: ips_option
+
+Usage: detect
+
+=== http_cookie
+
+
+What: rule option to set the detection cursor to the HTTP cookie
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_cookie.request*: match against the cookie from the request message even when examining the response
+* implied *http_cookie.with_body*: parts of this rule examine HTTP message body
+* implied *http_cookie.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_header
+
+
+What: rule option to set the detection cursor to the normalized headers
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *http_header.field*: restrict to given header. Header name is case insensitive.
+* implied *http_header.request*: match against the headers from the request message even when examining the response
+* implied *http_header.with_body*: parts of this rule examine HTTP message body
+* implied *http_header.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_method
+
+
+What: rule option to set the detection cursor to the HTTP request method
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_method.with_body*: parts of this rule examine HTTP message body
+* implied *http_method.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_raw_body
+
+
+What: rule option to set the detection cursor to the unnormalized message body
+
+Type: ips_option
+
+Usage: detect
+
+=== http_raw_cookie
+
+
+What: rule option to set the detection cursor to the unnormalized cookie
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_raw_cookie.request*: match against the cookie from the request message even when examining the response
+* implied *http_raw_cookie.with_body*: parts of this rule examine HTTP message body
+* implied *http_raw_cookie.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_raw_header
+
+
+What: rule option to set the detection cursor to the unnormalized headers
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_raw_header.request*: match against the headers from the request message even when examining the response
+* implied *http_raw_header.with_body*: parts of this rule examine HTTP message body
+* implied *http_raw_header.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_raw_request
+
+
+What: rule option to set the detection cursor to the unnormalized request line
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_raw_request.with_body*: parts of this rule examine HTTP message body
+* implied *http_raw_request.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_raw_status
+
+
+What: rule option to set the detection cursor to the unnormalized status line
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_raw_status.with_body*: parts of this rule examine HTTP message body
+* implied *http_raw_status.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_raw_trailer
+
+
+What: rule option to set the detection cursor to the unnormalized trailers
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_raw_trailer.request*: match against the trailers from the request message even when examining the response
+* implied *http_raw_trailer.with_header*: parts of this rule examine HTTP response message headers (must be combined with request)
+* implied *http_raw_trailer.with_body*: parts of this rule examine HTTP response message body (must be combined with request)
+
+=== http_raw_uri
+
+
+What: rule option to set the detection cursor to the unnormalized URI
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_raw_uri.with_body*: parts of this rule examine HTTP message body
+* implied *http_raw_uri.with_trailer*: parts of this rule examine HTTP message trailers
+* implied *http_raw_uri.scheme*: match against scheme section of URI only
+* implied *http_raw_uri.host*: match against host section of URI only
+* implied *http_raw_uri.port*: match against port section of URI only
+* implied *http_raw_uri.path*: match against path section of URI only
+* implied *http_raw_uri.query*: match against query section of URI only
+* implied *http_raw_uri.fragment*: match against fragment section of URI only
+
+=== http_stat_code
+
+
+What: rule option to set the detection cursor to the HTTP status code
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_stat_code.with_body*: parts of this rule examine HTTP message body
+* implied *http_stat_code.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_stat_msg
+
+
+What: rule option to set the detection cursor to the HTTP status message
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_stat_msg.with_body*: parts of this rule examine HTTP message body
+* implied *http_stat_msg.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_trailer
+
+
+What: rule option to set the detection cursor to the normalized trailers
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *http_trailer.field*: restrict to given trailer
+* implied *http_trailer.request*: match against the trailers from the request message even when examining the response
+* implied *http_trailer.with_header*: parts of this rule examine HTTP response message headers (must be combined with request)
+* implied *http_trailer.with_body*: parts of this rule examine HTTP message body (must be combined with request)
+
+=== http_true_ip
+
+
+What: rule option to set the detection cursor to the final client IP address
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_true_ip.with_body*: parts of this rule examine HTTP message body
+* implied *http_true_ip.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== http_uri
+
+
+What: rule option to set the detection cursor to the normalized URI buffer
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_uri.with_body*: parts of this rule examine HTTP message body
+* implied *http_uri.with_trailer*: parts of this rule examine HTTP message trailers
+* implied *http_uri.scheme*: match against scheme section of URI only
+* implied *http_uri.host*: match against host section of URI only
+* implied *http_uri.port*: match against port section of URI only
+* implied *http_uri.path*: match against path section of URI only
+* implied *http_uri.query*: match against query section of URI only
+* implied *http_uri.fragment*: match against fragment section of URI only
+
+=== http_version
+
+
+What: rule option to set the detection cursor to the version buffer
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *http_version.request*: match against the version from the request message even when examining the response
+* implied *http_version.with_body*: parts of this rule examine HTTP message body
+* implied *http_version.with_trailer*: parts of this rule examine HTTP message trailers
+
+=== icmp_id
+
+
+What: rule option to check ICMP ID
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *icmp_id.~range*: check if ICMP ID is in given range { 0:65535 }
+
+=== icmp_seq
+
+
+What: rule option to check ICMP sequence number
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *icmp_seq.~range*: check if ICMP sequence number is in given range { 0:65535 }
+
+=== icode
+
+
+What: rule option to check ICMP code
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *icode.~range*: check if ICMP code is in given range is { 0:255 }
+
+=== id
+
+
+What: rule option to check the IP ID field
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *id.~range*: check if the IP ID is in the given range { 0: }
+
+=== ip_proto
+
+
+What: rule option to check the IP protocol number
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *ip_proto.~proto*: [!|>|<] name or number
+
+=== ipopts
+
+
+What: rule option to check for IP options
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* select *ipopts.~opt*: output format { rr|eol|nop|ts|sec|esec|lsrr|lsrre|ssrr|satid|any }
+
+=== isdataat
+
+
+What: rule option to check for the presence of payload data
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *isdataat.~length*: num | !num
+* implied *isdataat.relative*: offset from cursor instead of start of buffer
+
+=== itype
+
+
+What: rule option to check ICMP type
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *itype.~range*: check if ICMP type is in given range { 0:255 }
+
+=== md5
+
+
+What: payload rule option for hash matching
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *md5.~hash*: data to match
+* int *md5.length*: number of octets in plain text { 1:65535 }
+* string *md5.offset*: var or number of bytes from start of buffer to start search
+* implied *md5.relative* = false: offset from cursor instead of start of buffer
+
+=== metadata
+
+
+What: rule option for conveying arbitrary name, value data within the rule text
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *metadata.**: comma-separated list of arbitrary name value pairs
+
+=== modbus_data
+
+
+What: rule option to set cursor to modbus data
+
+Type: ips_option
+
+Usage: detect
+
+=== modbus_func
+
+
+What: rule option to check modbus function code
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *modbus_func.~*: function code to match
+
+=== modbus_unit
+
+
+What: rule option to check Modbus unit ID
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *modbus_unit.~*: Modbus unit ID { 0:255 }
+
+=== msg
+
+
+What: rule option summarizing rule purpose output with events
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *msg.~*: message describing rule
+
+=== pcre
+
+
+What: rule option for matching payload data with pcre
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *pcre.~re*: Snort regular expression
+
+=== pkt_data
+
+
+What: rule option to set the detection cursor to the normalized packet data
+
+Type: ips_option
+
+Usage: detect
+
+=== priority
+
+
+What: rule option for prioritizing events
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *priority.~*: relative severity level; 1 is highest priority { 1:max31 }
+
+=== raw_data
+
+
+What: rule option to set the detection cursor to the raw packet data
+
+Type: ips_option
+
+Usage: detect
+
+=== reference
+
+
+What: rule option to indicate relevant attack identification system
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *reference.~scheme*: reference scheme
+* string *reference.~id*: reference id
+
+=== rem
+
+
+What: rule option to convey an arbitrary comment in the rule body
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *rem.~*: comment
+
+=== replace
+
+
+What: rule option to overwrite payload data; use with rewrite action
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *replace.~*: byte code to replace with
+
+=== rev
+
+
+What: rule option to indicate current revision of signature
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *rev.~*: revision { 1:max32 }
+
+=== rpc
+
+
+What: rule option to check SUNRPC CALL parameters
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *rpc.~app*: application number { 0:max32 }
+* string *rpc.~ver*: version number or * for any
+* string *rpc.~proc*: procedure number or * for any
+
+=== seq
+
+
+What: rule option to check TCP sequence number
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *seq.~range*: check if TCP sequence number is in given range { 0: }
+
+=== service
+
+
+What: rule option to specify list of services for grouping rules
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *service.**: one or more comma-separated service names
+
+=== session
+
+
+What: rule option to check user data from TCP sessions
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* enum *session.~mode*: output format { printable|binary|all }
+
+=== sha256
+
+
+What: payload rule option for hash matching
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *sha256.~hash*: data to match
+* int *sha256.length*: number of octets in plain text { 1:65535 }
+* string *sha256.offset*: var or number of bytes from start of buffer to start search
+* implied *sha256.relative* = false: offset from cursor instead of start of buffer
+
+=== sha512
+
+
+What: payload rule option for hash matching
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *sha512.~hash*: data to match
+* int *sha512.length*: number of octets in plain text { 1:65535 }
+* string *sha512.offset*: var or number of bytes from start of buffer to start search
+* implied *sha512.relative* = false: offset from cursor instead of start of buffer
+
+=== sid
+
+
+What: rule option to indicate signature number
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *sid.~*: signature id { 1:max32 }
+
+=== sip_body
+
+
+What: rule option to set the detection cursor to the request body
+
+Type: ips_option
+
+Usage: detect
+
+=== sip_header
+
+
+What: rule option to set the detection cursor to the SIP header buffer
+
+Type: ips_option
+
+Usage: detect
+
+=== sip_method
+
+
+What: detection option for sip stat code
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *sip_method.*method*: sip method
+
+=== sip_stat_code
+
+
+What: detection option for sip stat code
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* int *sip_stat_code.*code*: status code { 1:999 }
+
+=== so
+
+
+What: rule option to call custom eval function
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *so.~func*: name of eval function
+
+=== soid
+
+
+What: rule option to specify a shared object rule ID
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* string *soid.~*: SO rule ID is unique key, eg <gid>_<sid>_<rev> like 3_45678_9
+
+=== ssl_state
+
+
+What: detection option for ssl state
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *ssl_state.client_hello*: check for client hello
+* implied *ssl_state.server_hello*: check for server hello
+* implied *ssl_state.client_keyx*: check for client keyx
+* implied *ssl_state.server_keyx*: check for server keyx
+* implied *ssl_state.unknown*: check for unknown record
+* implied *ssl_state.!client_hello*: check for records that are not client hello
+* implied *ssl_state.!server_hello*: check for records that are not server hello
+* implied *ssl_state.!client_keyx*: check for records that are not client keyx
+* implied *ssl_state.!server_keyx*: check for records that are not server keyx
+* implied *ssl_state.!unknown*: check for records that are not unknown
+
+=== ssl_version
+
+
+What: detection option for ssl version
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* implied *ssl_version.sslv2*: check for sslv2
+* implied *ssl_version.sslv3*: check for sslv3
+* implied *ssl_version.tls1.0*: check for tls1.0
+* implied *ssl_version.tls1.1*: check for tls1.1
+* implied *ssl_version.tls1.2*: check for tls1.2
+* implied *ssl_version.!sslv2*: check for records that are not sslv2
+* implied *ssl_version.!sslv3*: check for records that are not sslv3
+* implied *ssl_version.!tls1.0*: check for records that are not tls1.0
+* implied *ssl_version.!tls1.1*: check for records that are not tls1.1
+* implied *ssl_version.!tls1.2*: check for records that are not tls1.2
+
+=== stream_reassemble
+
+
+What: detection option for stream reassembly control
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* enum *stream_reassemble.action*: stop or start stream reassembly { disable|enable }
+* enum *stream_reassemble.direction*: action applies to the given direction(s) { client|server|both }
+* implied *stream_reassemble.noalert*: don't alert when rule matches
+* implied *stream_reassemble.fastpath*: optionally whitelist the remainder of the session
+
+=== stream_size
+
+
+What: detection option for stream size checking
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *stream_size.~range*: check if the stream size is in the given range { 0: }
+* enum *stream_size.~direction*: compare applies to the given direction(s) { either|to_server|to_client|both }
+
+=== tag
+
+
+What: rule option to log additional packets
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* enum *tag.~*: log all packets in session or all packets to or from host { session|host_src|host_dst }
+* int *tag.packets*: tag this many packets { 1:max32 }
+* int *tag.seconds*: tag for this many seconds { 1:max32 }
+* int *tag.bytes*: tag for this many bytes { 1:max32 }
+
+=== target
+
+
+What: rule option to indicate target of attack
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* enum *target.~*: indicate the target of the attack { src_ip | dst_ip }
+
+=== tos
+
+
+What: rule option to check type of service field
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *tos.~range*: check if IP TOS is in given range { 0:255 }
+
+=== ttl
+
+
+What: rule option to check time to live field
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *ttl.~range*: check if IP TTL is in the given range { 0:255 }
+
+=== window
+
+
+What: rule option to check TCP window field
+
+Type: ips_option
+
+Usage: detect
+
+Configuration: 
+
+* interval *window.~range*: check if TCP window size is in given range { 0:65535 }
