@@ -10,4 +10,4 @@ until vagrant up N2;  do vagrant halt N2;  done
 until vagrant up S2;  do vagrant halt S2;  done
 
 vagrant halt;
-echo -e "\e[0;32mAll done! \e[0m"
+echo -e "\e[32mAll done! \e[0m"
