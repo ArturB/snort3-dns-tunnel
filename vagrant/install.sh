@@ -5,9 +5,10 @@ vagrant plugin install \
     vagrant-scp \
     vagrant-vbguest
 
-until vagrant up DNS; do vagrant halt DNS; done
-until vagrant up N2;  do vagrant halt N2;  done
-until vagrant up S2;  do vagrant halt S2;  done
+until vagrant up IPS1 --provision; do vagrant halt IPS1; done; vagrant halt IPS1; 
+until vagrant up IPS2 --provision; do vagrant halt IPS2; done; vagrant halt IPS2; 
+until vagrant up SRV1 --provision; do vagrant halt SRV1; done; vagrant halt SRV1; 
+until vagrant up SRV2 --provision; do vagrant halt SRV2; done; vagrant halt SRV2; 
+until vagrant up MDNS --provision; do vagrant halt MDNS; done; vagrant halt MDNS; 
 
-vagrant halt;
-echo -e "\e[32mAll done! \e[0m"
+./config.sh

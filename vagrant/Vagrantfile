@@ -7,62 +7,62 @@
 # you're doing.
 Vagrant.configure("2") do |bcyb|
   
-  bcyb.vm.define "B1" do |b1|
-    b1.vm.box = "fedora/29-cloud-base"
-    b1.vm.provider "virtualbox" do |v|
+  if `VBoxManage natnetwork list | grep BCYB | wc -l` == 0
+    v.customize ["natnetwork", "add", "--netname", "BCYB", "--network", "10.0.0.0/8"]
+  end
+
+  bcyb.vm.define "IPS1" do |ips1|
+    ips1.vm.box = "fedora/29-cloud-base"
+    ips1.vm.provider "virtualbox" do |v|
       v.gui = true
-      v.name = "bcyb_B1"
+      v.name = "IPS1"
     end
-    b1.vm.provision "shell", path: "b1.sh"
-    b1.vm.network "private_network", ip: "10.2.2.3", adapter: 2
+    ips1.vm.provision "shell", path: "ips1.sh"
   end
 
-  bcyb.vm.define "B2" do |b2|
-    b2.vm.box = "fedora/29-cloud-base"
-    b2.vm.provider "virtualbox" do |v|
+  bcyb.vm.define "IPS1" do |ips1|
+    ips1.vm.box = "fedora/29-cloud-base"
+    ips1.vm.provider "virtualbox" do |v|
       v.gui = true
-      v.name = "bcyb_B2"
+      v.name = "IPS1"
     end
-    b2.vm.provision "shell", path: "b2.sh"
-    b2.vm.network "private_network", ip: "10.2.2.4", adapter: 2
+    ips1.vm.provision "shell", path: "ips1.sh"
   end
 
-  bcyb.vm.define "B3" do |b3|
-    b3.vm.box = "fedora/29-cloud-base"
-    b3.vm.provider "virtualbox" do |v|
+  bcyb.vm.define "SRV1" do |srv1|
+    srv1.vm.box = "fedora/29-cloud-base"
+    srv1.vm.provider "virtualbox" do |v|
       v.gui = true
-      v.name = "bcyb_B3"
+      v.name = "SRV1"
     end
-    b3.vm.provision "shell", path: "b2.sh"
-    b3.vm.network "private_network", ip: "10.2.2.5", adapter: 2
+    srv1.vm.provision "shell", path: "srv.sh"
   end
 
-  bcyb.vm.define "DNS" do |dns|
-    dns.vm.box = "ArturB/bionic64-desktop"
-    dns.vm.provider "virtualbox" do |v|
+  bcyb.vm.define "IPS2" do |ips2|
+    ips2.vm.box = "fedora/29-cloud-base"
+    ips2.vm.provider "virtualbox" do |v|
       v.gui = true
-      v.name = "bcyb_DNS"
-    end 
+      v.name = "IPS2"
+    end
+    ips2.vm.provision "shell", path: "ips2.sh"
   end
 
-  bcyb.vm.define "N2" do |n2|
-    n2.vm.box = "ubuntu/bionic64"
-    n2.vm.provider "virtualbox" do |v|
+  bcyb.vm.define "SRV2" do |srv2|
+    srv2.vm.box = "fedora/29-cloud-base"
+    srv2.vm.provider "virtualbox" do |v|
       v.gui = true
-      v.name = "bcyb_N2"
-    end    
-    #n2.vm.provision "shell", path: "s2.sh"
-    #n2.vm.network "private_network", ip: "192.168.2.1"
+      v.name = "SRV2"
+    end
+    srv2.vm.provision "shell", path: "srv.sh"
   end
 
-  bcyb.vm.define "S2" do |s2|
-    s2.vm.box = "ubuntu/bionic64"
-    s2.vm.provider "virtualbox" do |v|
+  bcyb.vm.define "MDNS" do |mdns|
+    mdns.vm.box = "ArturB/bionic64-desktop"
+    mdns.vm.provider "virtualbox" do |v|
       v.gui = true
-      v.name = "bcyb_S2"
-    end    
-    #s2.vm.provision "shell", path: "s2.sh"
-    #s2.vm.network "private_network", ip: "192.168.2.2"
+      v.name = "MDNS"
+    end
+    mdns.vm.provision "shell", path: "mdns.sh"
   end
 
 end
