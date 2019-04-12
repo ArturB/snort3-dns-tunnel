@@ -1,0 +1,40 @@
+
+=== file_connector
+
+
+What: implement the file based connector
+
+Type: connector
+
+Usage: global
+
+Configuration: 
+
+* string *file_connector.connector*: connector name
+* string *file_connector.name*: channel name
+* enum *file_connector.format*: file format { binary | text }
+* enum *file_connector.direction*: usage { receive | transmit | duplex }
+
+Peg counts: 
+
+* *file_connector.messages*: total messages (sum)
+
+=== tcp_connector
+
+
+What: implement the tcp stream connector
+
+Type: connector
+
+Usage: global
+
+Configuration: 
+
+* string *tcp_connector.connector*: connector name
+* string *tcp_connector.address*: address
+* port *tcp_connector.base_port*: base port number
+* enum *tcp_connector.setup*: stream establishment { call | answer }
+
+Peg counts: 
+
+* *tcp_connector.messages*: total messages (sum)

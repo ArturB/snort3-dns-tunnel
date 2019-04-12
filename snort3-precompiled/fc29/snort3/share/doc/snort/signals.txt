@@ -1,0 +1,7 @@
+* *term*(15): shutdown normally
+* *int*(2): shutdown normally
+* *quit*(3): shutdown as if started with --dirty-pig
+* *stats*(10): dump stats to stdout
+* *rotate*(12): rotate stats files
+* *reload*(1): reload config file
+* *hosts*(23): reload hosts file

@@ -1,0 +1,32 @@
+prefix=/usr/snort3
+exec_prefix=${prefix}
+bindir=${exec_prefix}/bin
+libdir=${prefix}/lib64
+includedir=${prefix}/include
+datarootdir=${prefix}/share
+datadir=${datarootdir}
+mandir=${datarootdir}/man
+infodir=${datarootdir}/info
+
+cpp_opts=DAQ LUAJIT
+cpp_opts_other=DNET FLATBUFFERS HWLOC HYPERSCAN LZMA OPENSSL PCAP PCRE UUID
+
+PCAP_CPPFLAGS=-I/usr/include
+LUAJIT_CPPFLAGS=-I/usr/include/luajit-2.1
+DNET_CPPFLAGS=-I/usr/local/include
+DAQ_CPPFLAGS=-I/usr/local/include
+FLATBUFFERS_CPPFLAGS=
+OPENSSL_CPPFLAGS=-I/usr/include
+HWLOC_CPPFLAGS=
+PCRE_CPPFLAGS=-I/usr/include
+LZMA_CPPFLAGS=
+HYPERSCAN_CPPFLAGS=
+UUID_CPPFLAGS=
+
+Name: Snort++
+Description: Snort 3.0 Project
+URL: www.snort.org
+Version: 3.0.0
+Libs: -L${libdir}/snort
+Cflags: -I${includedir}/snort     
+
