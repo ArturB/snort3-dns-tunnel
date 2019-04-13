@@ -1,19 +1,15 @@
 #####################################
-####    MED2017Z  Grupowanie     ####
-####       Adam Małkowski        ####
+####    KLASYFIKATOR BAYESA      ####
+####       DNS TUNNELLING       ####
 ####      Artur M. Brodzki       ####
 #####################################
 
-
-library(som)
-library(fpc)
+library(rjson)
 
 #####################################
 ####    Przygotowanie danych     ####
 #####################################
 
-
-
-
-?som
-
+setwd("/Users/artur/Projekty/kant-security/bayes/")
+dnsQueries <- fromJSON(file = "qlog.json")
+dnsFrame <- as.data.frame(dnsQueries)
