@@ -9,19 +9,15 @@ License:        GPLv2
 %description
 Snort 3 Beta precompiled binaries. 
 
-%prep
-
-%build
-
 %install
 cp -r %{_builddir}/usr %{buildroot}
 
 %files
-/usr/bin/appid_detector_builder.sh
-/usr/bin/u2boat
-/usr/bin/snort
-/usr/bin/u2spewfoo
-/usr/bin/snort2lua
+%attr(755, _, _) /usr/bin/appid_detector_builder.sh
+%attr(755, _, _) /usr/bin/u2boat
+%attr(755, _, _) /usr/bin/snort
+%attr(755, _, _) /usr/bin/u2spewfoo
+%attr(755, _, _) /usr/bin/snort2lua
 /usr/lib64/snort/daqs/daq_file.so
 /usr/lib64/snort/daqs/daq_hext.so
 /usr/lib64/pkgconfig/snort.pc
