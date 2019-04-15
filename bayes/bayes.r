@@ -116,6 +116,9 @@ write.table(x = totalDns.ngrams.frame, file = "dns-freqs.csv", quote = FALSE, ro
 ##################################
 
 isValidDns <- function(d, allNgrams) {
+  if(nchar(d) <= 4) {
+    return(TRUE);
+  }
   subs <- allSubStrings(d, 3)
   prob = 0;
   for(s in subs) {
@@ -142,6 +145,7 @@ for(d in validDns.domains) {
   }
   else {
     testDns.falseNegatives = testDns.falseNegatives + 1
+    print(paste0("False-positive: ", d))
   }
   testDns.i = testDns.i + 1
   setTxtProgressBar(testDns.pb, testDns.i)
