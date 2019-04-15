@@ -19,6 +19,20 @@ setwd("/Users/artur/Projekty/kant-security/bayes/")
 validDns.csv <- read.csv(file = "valid-qlog.csv", header = FALSE)
 validDns.domains = validDns.csv$V2
 
+######################
+# Histogram długości #
+######################
+
+validDns.lengths = 1:length(validDns.domains)
+for(i in 1:length(validDns.domains)) {
+  validDns.lengths[[i]] = nchar(toString(validDns.domains[[i]]))
+}
+hist(validDns.lengths, breaks = 63, col = "red", freq = FALSE, ylim=c(0, 0.3), xlim = range(1:40))
+
+#############
+# Częstości #
+#############
+
 validDns.ngrams = list()
 validDns.pb = txtProgressBar(min = 0, max = length(validDns.domains), initial = 0)
 validDns.i = 0
