@@ -1,0 +1,1 @@
+./start.sh --plugin-path /usr/local/snort/lib64/snort_extra/ -A alert_full -R ~/myriles.rules
