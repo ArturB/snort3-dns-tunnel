@@ -146,6 +146,60 @@ isValidDns <- function(d, allNgrams) {
   return(prob > 0)
 }
 
+isValidDnsProb <- function(d, allNgrams) {
+  if(nchar(d) <= 4) {
+    return(100)
+  }
+  subs <- allSubStrings(d, 3)
+  prob = 0;
+  for(s in subs) {
+    if(! s %in% names(allNgrams)) {
+      return(100)
+    }
+    else {
+      prob = prob + allNgrams[[s]]
+    }
+  }
+  return(prob)
+}
+
+isValidDnsDist <- function(d, allNgrams) {
+  if(nchar(d) <= 4) {
+    return(TRUE);
+  }
+  subs <- allSubStrings(d, 3)
+  prob = 0;
+  for(s in subs) {
+    if(! s %in% names(allNgrams)) {
+      return(TRUE)
+    }
+    else {
+      prob = prob + allNgrams[[s]]
+    }
+  }
+  return(prob > 50)
+}
+
+
+#####################
+# Histogram Validów #
+#####################
+
+testDns.validValues = 1:length(validDns.domains)
+testDns.i = 0
+testDns.pb = txtProgressBar(min = 0, max = length(validDns.domains), initial = 0)
+for(i in 1:length(validDns.domains)) {
+  testDns.validValues[[i]] = isValidDnsProb(toString(validDns.domains[[i]]), totalDns.ngrams)
+  testDns.i = testDns.i + 1
+  setTxtProgressBar(testDns.pb, testDns.i)
+}
+close(testDns.pb)
+hist(testDns.validValues, breaks = 5000, col = "red", freq = FALSE, xlim = range(1:110))
+
+##################
+# Testy właściwe #
+##################
+
 testDns.truePositives = 0;
 testDns.trueNegatives = 0;
 testDns.falsePositives = 0;
@@ -154,7 +208,7 @@ testDns.i = 0
 testDns.pb = txtProgressBar(min = 0, max = length(validDns.domains), initial = 0)
 print("Checking valid class...")
 for(d in validDns.domains) {
-  if(isValidDns(toString(d), totalDns.ngrams)) {
+  if(isValidDnsDist(toString(d), totalDns.ngrams)) {
     testDns.truePositives = testDns.truePositives + 1
   }
   else {
@@ -169,7 +223,7 @@ testDns.i = 0
 testDns.pb = txtProgressBar(min = 0, max = length(evilDns.domains), initial = 0)
 print("Checking evil class...")
 for(d in evilDns.domains) {
-  if(! isValidDns(toString(d), totalDns.ngrams)) {
+  if(! isValidDnsDist(toString(d), totalDns.ngrams)) {
     testDns.trueNegatives = testDns.trueNegatives + 1
   }
   else {
