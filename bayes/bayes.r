@@ -12,6 +12,8 @@ allSubStrings <- function(str, n = 3) {
 
 setwd("/Users/artur/Projekty/kant-security/bayes/")
 
+binsearch <- function(list, range, )
+
 #####################################
 ####     Poprawne zapytania      ####
 #####################################
@@ -102,7 +104,16 @@ evilDns.ngrams = evilDns.ngrams[order(unlist(evilDns.ngrams), decreasing = TRUE)
 
 totalDns.names = c( names(validDns.ngrams), names(evilDns.ngrams) )
 totalDns.ngrams = list()
-totalDns.factor = -5
+
+# Because cost of false negative 
+# is many times higher then cost of false positive,
+# probability scaling factor is introduced.
+# It specifies, how many times 
+# is probability of negative class higher 
+# than probability of positive class
+# to classify query as negative. 
+totalDns.factor = 64 
+
 totalDns.i = 0
 totalDns.pb = txtProgressBar(min = 0, max = length(totalDns.names), initial = 0)
 for(n in totalDns.names) {
@@ -116,7 +127,7 @@ for(n in totalDns.names) {
   }
   # BOTH-VALID CASE
   else {
-    totalDns.ngrams[[n]] = validDns.ngrams[[n]] - evilDns.ngrams[[n]] - totalDns.factor + 1
+    totalDns.ngrams[[n]] = validDns.ngrams[[n]] - evilDns.ngrams[[n]] + log(totalDns.factor, base = 2)
   }
   totalDns.i = totalDns.i + 1
   setTxtProgressBar(totalDns.pb, totalDns.i)
@@ -139,7 +150,7 @@ write.table(
 ####  Testy klasyfikatora     ####
 ##################################
 
-isValidDns <- function(d, allNgrams, lenThr = 5, probThr = 0) {
+isValidDns <- function(d, allNgrams, lenThr = 3, probThr = 0) {
   if(nchar(d) <= lenThr) {
     return(TRUE);
   }
@@ -201,20 +212,20 @@ hist(testDns.validValues, breaks = 5000, col = "red", freq = FALSE, xlim = range
 # Testy właściwe #
 ##################
 
-testDnsBayes <- function() {
+testDnsBayes <- function(queryLen = 8, lenThr = 3, sampleSize = 10000) {
   
   testDns.truePositives = 0;
   testDns.trueNegatives = 0;
   testDns.falsePositives = 0;
   testDns.falseNegatives = 0;
-  testDns.validSample = sample(validDns.domains, 10000)
-  testDns.evilSample = sample(c( evilDns.domainsHEX, evilDns.domainsB32 ), 1000)
+  testDns.validSample = sample(validDns.domains, sampleSize)
+  testDns.evilSample = sample(c( evilDns.domainsHEX, evilDns.domainsB32 ), sampleSize)
   
   print("Checking valid class...")
   testDns.i = 0
   testDns.pb = txtProgressBar(min = 0, max = length(testDns.validSample), initial = 0)
   for(d in testDns.validSample) {
-    if(isValidDns(toString(d), totalDns.ngrams)) {
+    if(isValidDns(toString(d), totalDns.ngrams, lenThr = lenThr)) {
       testDns.truePositives = testDns.truePositives + 1
     }
     else {
@@ -232,7 +243,7 @@ testDnsBayes <- function() {
   testDns.i = 0
   testDns.pb = txtProgressBar(min = 0, max = length(testDns.evilSample), initial = 0)
   for(d in testDns.evilSample) {
-    if(! isValidDns(toString(d), totalDns.ngrams)) {
+    if(! isValidDns(toString(substring(d, 1, queryLen)), totalDns.ngrams, lenThr = lenThr)) {
       testDns.trueNegatives = testDns.trueNegatives + 1
     }
     else {
