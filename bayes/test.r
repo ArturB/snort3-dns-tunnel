@@ -38,7 +38,7 @@ close(connB32)
 #############################
 
 totalDns.ngrams.frame <- read.table(
-  file = "dns.freqs"
+  file = "dns.freqs", sep = ","
 )
 totalDns.ngrams = as.list(setNames(totalDns.ngrams.frame$V2, totalDns.ngrams.frame$V1))
 

@@ -140,7 +140,8 @@ write.table(
   file = "dns.freqs", 
   quote = FALSE, 
   row.names = FALSE, 
-  col.names = FALSE
+  col.names = FALSE,
+  sep = ","
 )
 
 
