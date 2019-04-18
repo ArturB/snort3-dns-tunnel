@@ -113,8 +113,8 @@ lines(
   type = "l", 
   lwd = 1.5)
 
-evilDns.x <- 1:length(evilDns.ngrams)
-evilDns.y <- unlist(evilDns.ngrams)
+evilDns.x <- 1:length(validDns.ngrams)
+evilDns.y <- head(unlist(evilDns.ngrams), length(validDns.ngrams))
 lines(
   evilDns.x, 
   evilDns.y, 
@@ -127,7 +127,7 @@ legend(
   "topright",
   legend = c( "Poprawne zapytania", "Z³oœliwe zapytania" ), 
   col = c("blue", "red"), 
-  lty = 1:2
+  lty = c(1,1)
 )
 
 ######################
@@ -143,7 +143,17 @@ for(i in 1:length(validDns.domains)) {
   setTxtProgressBar(validDns.pb, validDns.i)
 }
 close(validDns.pb)
-hist(validDns.lengths, breaks = 63, col = "red", freq = FALSE, ylim=c(0, 0.3), xlim = range(1:40))
+hist(
+  validDns.lengths, 
+  breaks = 63, 
+  col = "red", 
+  freq = FALSE, 
+  ylim=c(0, 0.3), 
+  xlim = range(1:40),
+  xlab = "",
+  ylab = "",
+  main = "Histogram d³ugoœci prawid³owych zapytañ DNS"
+)
 
 
 ######################
