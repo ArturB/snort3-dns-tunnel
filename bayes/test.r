@@ -4,13 +4,8 @@
 ####      Artur M. Brodzki       ####
 #####################################
 
-library(rjson)
-
-allSubStrings <- function(str, n = 3) {
-  substring(str, 1:(nchar(str)-n+1), n:nchar(str))
-}
-
 setwd("/Users/artur/Projekty/kant-security/bayes/")
+source("train.r")
 
 ######################
 # Poprawne zapytania #
@@ -63,24 +58,26 @@ isValidDns <- function(d, allNgrams, lenThr = 3, probThr = 0) {
   return(prob > probThr)
 }
 
-##################
-# Testy w³aœciwe #
-##################
+#########
+# Testy #
+#########
 
-testDnsBayes <- function(queryLen = 8, lenThr = 3, sampleSize = 5000) {
+testDnsBayes <- function(validSample, evilSample, ngrams, queryLen = 8, lenThr = 3, sampleSize = 5000) {
   
   testDns.truePositives = 0;
   testDns.trueNegatives = 0;
   testDns.falsePositives = 0;
   testDns.falseNegatives = 0;
-  testDns.validSample = sample(c( sample(validDns.domains, sampleSize / 2), sample(validDns.domains2, sampleSize / 2) ))
-  testDns.evilSample = sample(c( evilDns.domainsHEX, evilDns.domainsB32 ), sampleSize)
+  testDns.validSample = sample(validSample, sampleSize)
+  testDns.evilSample = sample(evilSample, sampleSize)
   
   print("Checking valid class...")
   testDns.i = 0
-  testDns.pb = txtProgressBar(min = 0, max = length(testDns.validSample), initial = 0)
+  testDns.pb = txtProgressBar(min = 0, 
+                              max = length(testDns.validSample), 
+                              initial = 0)
   for(d in testDns.validSample) {
-    if(isValidDns(toString(d), totalDns.ngrams, lenThr = lenThr)) {
+    if(isValidDns(d, ngrams, lenThr = lenThr)) {
       testDns.truePositives = testDns.truePositives + 1
     }
     else {
@@ -96,9 +93,11 @@ testDnsBayes <- function(queryLen = 8, lenThr = 3, sampleSize = 5000) {
   
   print("Checking evil class...")
   testDns.i = 0
-  testDns.pb = txtProgressBar(min = 0, max = length(testDns.evilSample), initial = 0)
+  testDns.pb = txtProgressBar(min = 0, 
+                              max = length(testDns.evilSample), 
+                              initial = 0)
   for(d in testDns.evilSample) {
-    if(! isValidDns(toString(substring(d, 10, queryLen+9)), totalDns.ngrams, lenThr = lenThr)) {
+    if(! isValidDns(d, ngrams, lenThr = lenThr)) {
       testDns.trueNegatives = testDns.trueNegatives + 1
     }
     else {
@@ -133,4 +132,9 @@ printFalsePositives <- function(lenThr = 3, sampleSize = 10000) {
   
 }
 
-testDnsBayes(queryLen = 8, lenThr = 3, sampleSize = 8000)
+testDnsBayes(validDns.polishDomains, 
+             evilDns.domains2, 
+             dnsBayes.ngrams,
+             queryLen = 8, 
+             lenThr = 3, 
+             sampleSize = 5000)
