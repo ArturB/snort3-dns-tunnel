@@ -168,6 +168,9 @@ DnsTunnelPacket::DnsTunnelPacket(Packet *p) :
 
       unsigned char* qname = (unsigned char*)malloc((q.qlen+1)*sizeof(char));
       memcpy(qname,buf,q.qlen+1);
+      unsigned char *c = qname;
+      while (*c)
+        *c++=tolower(*c);
       q.qname = qname;
       questions.push_back(q);
   }
@@ -293,7 +296,7 @@ struct DnsTunnelDnsRankRecord* DnsTunnelOption::pushDnsRecord(const char *s, u_i
     r = &((*r)->next);
 
   if (*r != nullptr){
-    printf("DNS-DEBUG pushRecord : found %s | %s (%s)\n",(*r)->domain, s+off, s);
+    //printf("DNS-DEBUG pushRecord : found %s | %s (%s)\n",(*r)->domain, s+off, s);
     return *r;
   }
 
@@ -310,7 +313,7 @@ struct DnsTunnelDnsRankRecord* DnsTunnelOption::pushDnsRecord(const char *s, u_i
   (*r)->off = off;
   (*r)->bad = false;
 
-  printf("DNS-DEBUG pushRecord : new %s\n",(*r)->domain);
+  //printf("DNS-DEBUG pushRecord : new %s\n",(*r)->domain);
 
   return *r;
 }
@@ -322,13 +325,25 @@ double DnsTunnelOption::getNgScore(char *s, u_int8_t len){
     return 0;
   while (off < len){
     double score = 0;
-    int limiter = ((len-off) > config.windowsize ? config.windowsize : len);
-    for (int i = 0 ; i < limiter-freqs.nglen ; ++i){
+    int limiter = config.windowsize;
+
+    if (len-off < config.windowsize)
+      off = len-config.windowsize;
+    if (off < 0){
+      limiter+=off;
+      off=0;
+    }
+
+    for (int i = 0 ; i <= limiter-freqs.nglen ; ++i){
       unsigned long ind = ngBinSearch(s+off+i);
-      if (ind < freqs.ngnum)
+      if (ind < freqs.ngnum){
+        //printf("DNS-DEBUG getNgScore : %s  %lf\n",freqs.data[ind].ng,freqs.data[ind].score);
         score+=freqs.data[ind].score;
+      }
     }
     off+=limiter;
+    if (off > len)
+      off = len-freqs.nglen;
     if (score < worst)
       worst = score;
   }
@@ -348,10 +363,10 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
     b = &((*b)->next);
   }
 
-  printf("DNS-DEBUG pushRecordSub : badlenA %d\n",badlen);
+  //printf("DNS-DEBUG pushRecordSub : badlenA %d\n",badlen);
 
   if (*b == nullptr){   //not found
-    printf("DNS-DEBUG pushRecordSub : not found %s %d\n",s,len);
+    //printf("DNS-DEBUG pushRecordSub : not found %s %d\n",s,len);
     if ((*b = (struct DnsTunnelDnsRankRecordSub*)malloc(sizeof(struct DnsTunnelDnsRankRecordSub))) == nullptr)
       return -1;
     if (((*b)->domain = (char*)malloc(len+1)) == nullptr){
@@ -363,13 +378,15 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
     (*b)->domain[len]=0;
     (*b)->len = len;
     (*b)->next = nullptr;
+    (*b)->bad = false;
 
     double score = getNgScore((*b)->domain, len);
-    printf("DNS-DEBUG pushRecordSub : score %lf\n",score);
-    if (score < 0)
+    if (score < 0){
+      printf("DNS-DEBUG pushRecordSub : score %lf %s (%d/%d %d/%d %d/%d)\n",score, s, badlen+(score<0?len:0),config.threshold,totlen,config.maxbuffersize,subnum,config.minbufferlen);
       (*b)->bad = true;
-  } else
-    printf("DNS-DEBUG pushRecordSub : found %s %d\n",(*b)->domain,len);
+    }
+  } //else
+    //printf("DNS-DEBUG pushRecordSub : found %s %d\n",(*b)->domain,len);
 
   while (*b != nullptr){
     totlen+=(*b)->len;
@@ -383,12 +400,14 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
     b = &r->subdomain;
     printf("DNS-DEBUG pushRecordSub : cleanup %s\n",(*b)->domain);
     struct DnsTunnelDnsRankRecordSub* bb = (*b)->next;
+    totlen-=(*b)->len;
+    --subnum;
     free((*b)->domain);
     free(*b);
     *b = bb;
   }
 
-  printf("DNS-DEBUG pushRecordSub : badlenB %d\n",badlen);
+  //printf("DNS-DEBUG pushRecordSub : badlenB %d\n",badlen);
 
   return badlen;
 }
@@ -410,22 +429,22 @@ bool DnsTunnelOption::isBad(char *s){
     ++c;
   }
 
-  printf("DNS-DEBUG  dots %d %d %d\n",dot3, dot2, dot1);
+  //printf("DNS-DEBUG  dots %d %d %d\n",dot3, dot2, dot1);
 
   if (!dot3)
     return 0;
 
   r = pushDnsRecord(s,dot3+1);
   if (r == nullptr || r->bad){
-    printf(r==nullptr?"DNS-DEBUG isBad : FAIL\n":"DNS-DEBUG isBad : earlyBAD\n");
+    printf(r==nullptr?"DNS-DEBUG isBad : FAIL %s\n":"DNS-DEBUG isBad : earlyBAD %s\n",s);
     return true;
   }
 
   if (pushDnsRecordSub(s,dot3,r) > config.threshold){
-    printf("DNS-DEBUG isBad : lateBAD\n");
+    printf("DNS-DEBUG isBad : lateBAD %s\n",s);
     r->bad = true;
-  } else
-    printf("DNS-DEBUG isBad : GOOD\n");
+  } //else
+    //printf("DNS-DEBUG isBad : GOOD\n");
 
   return r->bad;
 }
@@ -433,16 +452,15 @@ bool DnsTunnelOption::isBad(char *s){
 /* HERE WE PERFORM ACTUAL MATCHING */
 IpsOption::EvalStatus DnsTunnelOption::eval(Cursor& c, Packet*p)
 {
-    printf("--- CTOR-Option::eval\n");
+    //printf("--- CTOR-Option::eval\n");
     Profile profile(dns_tunnel_perf_stats);
     if ( p->is_udp() && p->has_udp_data() && p->dsize >= MIN_DNS_SIZE){
       DnsTunnelPacket pkt = DnsTunnelPacket(p);
-      printf("DNS-DEBUG: size: %d questions:%d\n",
-             p->dsize,pkt.question_num);
+      //printf("DNS-DEBUG: size: %d questions:%d\n",p->dsize,pkt.question_num);
 
       if (!pkt.malformed) {
         for(int i = 0 ; i < pkt.questions.size() ; ++i){
-          printf("DNS-DEBUG  question %d : [%s]\n",i,pkt.questions[i].qname);
+          //printf("DNS-DEBUG  question %d : [%s]\n",i,pkt.questions[i].qname);
           if (isBad((char*)pkt.questions[i].qname))
             return MATCH;
         }
