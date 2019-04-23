@@ -49,6 +49,33 @@ static THREAD_LOCAL ProfileStats dns_tunnel_perf_stats;
 #define INIT_NGRAM_NUM 32768
 
 
+
+
+
+
+
+enum DnsLogLevel {
+  DNS_LOG_OFF = 0,
+  DNS_LOG_STARTUP = 1,
+  DNS_LOG_STARTUP_VERBOSE = 2,
+  DNS_LOG_INFO_BAD = 3,
+  DNS_LOG_INFO_ALL = 4,
+  DNS_LOG_DEBUG = 5,
+  DNS_LOG_DEBUG_FULL = 6
+};
+
+#define DnsLog_log(msg_level, ...)\
+  if (config.verbose>=msg_level && logfile){\
+    if (config.logprefix)\
+      fprintf(logfile,"DNS-DEBUG: [%s] <%d> | ",config.logprefix,msg_level);\
+    else \
+      fprintf(logfile,"DNS-DEBUG: <%d> | ",msg_level);\
+    fprintf(logfile,__VA_ARGS__);\
+  }
+
+
+//--------------------------
+
 unsigned long djb2(unsigned const char *str){
   unsigned long hash = 5381;
   int c;
@@ -59,15 +86,24 @@ unsigned long djb2(unsigned const char *str){
   return hash;
 }
 
+struct DnsTunnelModuleParams {
+  u_int8_t verbose;         //verbose level
+  const char* logfile;
+  const char* logprefix;
+};
 
-struct DnsTunnelParams {
-  u_int32_t threshold;      //total length of negatively classified queries to consider domain malicious
+struct DnsTunnelOptionParams {
+  double    scorethreshold; //min score to consider domain not malicious
+  u_int32_t sizethreshold;  //total length of negatively classified queries to consider domain malicious
   u_int32_t maxbuffersize;  //max total length of buffered requests
   u_int8_t minbufferlen;    //min number of buffered requests (more important than maxbuffersize)
   u_int8_t windowsize;      //size of classification window
   u_int8_t minreqsize;      //minimum subdomain size required to start prediction
   u_int32_t bucketlen;      //size of domains bucket
-  const char* datafile;
+  u_int8_t verbose;         //verbose level
+  char* datafile;     //file with n-gram weights
+  char* logfile;
+  char* logprefix;
 };
 
 struct DnsTunnelNgFreqRecord {
@@ -188,7 +224,7 @@ DnsTunnelPacket::~DnsTunnelPacket(){
 class DnsTunnelOption : public IpsOption
 {
 public:
-    DnsTunnelOption(const DnsTunnelParams& c, const DnsTunnelNgFreqs &f);
+    DnsTunnelOption(const DnsTunnelOptionParams& c, const DnsTunnelNgFreqs &f);
     ~DnsTunnelOption();
 
     uint32_t hash() const override;
@@ -204,21 +240,30 @@ public:
 
 
 private:
-    struct DnsTunnelParams config;
+    struct DnsTunnelOptionParams config;
     struct DnsTunnelNgFreqs freqs;
     struct DnsTunnelDnsRank rank;
+    FILE* logfile;
 };
 
-DnsTunnelOption::DnsTunnelOption(const DnsTunnelParams &c, const DnsTunnelNgFreqs &f) : IpsOption(s_name){
-  printf("--- CTOR-Option\n");
-
-  config.threshold = c.threshold;
+DnsTunnelOption::DnsTunnelOption(const DnsTunnelOptionParams &c, const DnsTunnelNgFreqs &f) : IpsOption(s_name){
+  config.scorethreshold = c.scorethreshold;
+  config.sizethreshold = c.sizethreshold;
   config.maxbuffersize = c.maxbuffersize;
   config.minbufferlen = c.minbufferlen;
   config.windowsize = c.windowsize;
   config.minreqsize = c.minreqsize;
   config.bucketlen = c.bucketlen;
   config.datafile = c.datafile;
+  config.logfile = c.logfile;
+  config.logprefix = c.logprefix;
+  config.verbose = c.verbose;
+
+  if (config.logfile) logfile = fopen(config.logfile, "a");
+  else logfile = stdout;
+  setbuf(logfile, nullptr);
+
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Option\n");
 
   freqs.ngnum = f.ngnum;
   freqs.nglen = f.nglen;
@@ -237,17 +282,17 @@ DnsTunnelOption::~DnsTunnelOption(){
 /* USED TO DETECT EXACTLY THE SAME RULE ENTRIES, AVOIDS DUPLICATION */
 uint32_t DnsTunnelOption::hash() const
 {
-    printf("--- CTOR-Option::hash\n");
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Option::hash\n");
     uint32_t a, b, c;
 
-    a = config.threshold+(64*config.maxbuffersize);
+    a = config.sizethreshold+(64*config.maxbuffersize)*config.scorethreshold;
     b = config.windowsize+(255*config.minbufferlen);
     c = freqs.ngnum*freqs.nglen;
 
     mix_str(a,b,c,get_name());
     finalize(a,b,c);
 
-    printf("--- CTOR-Option::hash-exit %d\n",c);
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Option::hash-exit %d\n",c);
 
     return c;
 }
@@ -255,22 +300,26 @@ uint32_t DnsTunnelOption::hash() const
 /* USED TO DETECT EXACTLY THE SAME RULE ENTRIES, AVOIDS DUPLICATION */
 bool DnsTunnelOption::operator==(const IpsOption& ips) const
 {
-    printf("--- CTOR-Option::operator==\n");
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Option::operator==\n");
     if ( strcmp(s_name, ips.get_name()) )
         return false;
 
     const DnsTunnelOption& rhs = (const DnsTunnelOption&)ips;
     int ret = (
           false &&    //this significantly simplifies memory deallocation
-          config.threshold == rhs.config.threshold &&
+          config.scorethreshold == rhs.config.scorethreshold &&
+          config.sizethreshold == rhs.config.sizethreshold &&
           config.maxbuffersize == rhs.config.maxbuffersize &&
           config.minbufferlen == rhs.config.minbufferlen &&
           config.windowsize == rhs.config.windowsize &&
           config.minreqsize == rhs.config.minreqsize &&
           config.bucketlen == rhs.config.bucketlen &&
-          strcmp(config.datafile,rhs.config.datafile) == 0);
+          config.verbose == rhs.config.verbose &&
+          strcmp(config.datafile,rhs.config.datafile) == 0 &&
+          strcmp(config.logfile,rhs.config.logfile) == 0 &&
+          strcmp(config.logprefix,rhs.config.logprefix) == 0);
 
-    printf("--- CTOR-Option::operator== (%d)\n",ret);
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Option::operator== (%d)\n",ret);
     return ret;
 }
 
@@ -296,7 +345,7 @@ struct DnsTunnelDnsRankRecord* DnsTunnelOption::pushDnsRecord(const char *s, u_i
     r = &((*r)->next);
 
   if (*r != nullptr){
-    //printf("DNS-DEBUG pushRecord : found %s | %s (%s)\n",(*r)->domain, s+off, s);
+    DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecord : found [%s] == [%s] (%s)\n",(*r)->domain, s+off, s);
     return *r;
   }
 
@@ -313,7 +362,7 @@ struct DnsTunnelDnsRankRecord* DnsTunnelOption::pushDnsRecord(const char *s, u_i
   (*r)->off = off;
   (*r)->bad = false;
 
-  //printf("DNS-DEBUG pushRecord : new %s\n",(*r)->domain);
+  DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecord : new [%s]\n",(*r)->domain);
 
   return *r;
 }
@@ -337,7 +386,7 @@ double DnsTunnelOption::getNgScore(char *s, u_int8_t len){
     for (int i = 0 ; i <= limiter-freqs.nglen ; ++i){
       unsigned long ind = ngBinSearch(s+off+i);
       if (ind < freqs.ngnum){
-        //printf("DNS-DEBUG getNgScore : %s  %lf\n",freqs.data[ind].ng,freqs.data[ind].score);
+        DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- getNgScore : [%s] %lf\n",freqs.data[ind].ng,freqs.data[ind].score);
         score+=freqs.data[ind].score;
       }
     }
@@ -355,7 +404,7 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
   u_int32_t totlen = 0;
   u_int32_t badlen = 0;
   u_int8_t subnum = 0;
-  while (*b != nullptr && ((*b)->len != len || strncmp((*b)->domain,s,len) != 0)){
+  while (*b != nullptr && ((*b)->len != len || memcmp((*b)->domain,s,len) != 0)){
     totlen+=(*b)->len;
     ++subnum;
     if ((*b)->bad)
@@ -363,10 +412,10 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
     b = &((*b)->next);
   }
 
-  //printf("DNS-DEBUG pushRecordSub : badlenA %d\n",badlen);
+  DnsLog_log(DNS_LOG_DEBUG_FULL,". . -- pushRecordSub : badlen before %d\n",badlen);
 
   if (*b == nullptr){   //not found
-    //printf("DNS-DEBUG pushRecordSub : not found %s %d\n",s,len);
+    DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecordSub : not found [%s] %d\n",s,len);
     if ((*b = (struct DnsTunnelDnsRankRecordSub*)malloc(sizeof(struct DnsTunnelDnsRankRecordSub))) == nullptr)
       return -1;
     if (((*b)->domain = (char*)malloc(len+1)) == nullptr){
@@ -381,12 +430,14 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
     (*b)->bad = false;
 
     double score = getNgScore((*b)->domain, len);
-    if (score < 0){
-      printf("DNS-DEBUG pushRecordSub : score %lf %s (%d/%d %d/%d %d/%d)\n",score, s, badlen+(score<0?len:0),config.threshold,totlen,config.maxbuffersize,subnum,config.minbufferlen);
+    if (score < config.scorethreshold){
+      DnsLog_log(DNS_LOG_INFO_BAD,". . -- pushRecordSub : score %lf [%s/%s] (%d/%d %d/%d %d/%d)\n",
+                 score, (*b)->domain, s+len, badlen+(score<config.scorethreshold?len:0),
+                 config.sizethreshold,totlen,config.maxbuffersize,subnum,config.minbufferlen);
       (*b)->bad = true;
     }
-  } //else
-    //printf("DNS-DEBUG pushRecordSub : found %s %d\n",(*b)->domain,len);
+  } else
+    DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecordSub : found [%s] %d\n",(*b)->domain,len);
 
   while (*b != nullptr){
     totlen+=(*b)->len;
@@ -398,7 +449,7 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
 
   while (totlen > config.maxbuffersize && subnum > config.minbufferlen){
     b = &r->subdomain;
-    printf("DNS-DEBUG pushRecordSub : cleanup %s\n",(*b)->domain);
+    DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecordSub : cleanup [%s]\n",(*b)->domain);
     struct DnsTunnelDnsRankRecordSub* bb = (*b)->next;
     totlen-=(*b)->len;
     --subnum;
@@ -407,7 +458,7 @@ u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct 
     *b = bb;
   }
 
-  //printf("DNS-DEBUG pushRecordSub : badlenB %d\n",badlen);
+  DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecordSub : badlen after %d\n",badlen);
 
   return badlen;
 }
@@ -420,6 +471,8 @@ bool DnsTunnelOption::isBad(char *s){
   char* cur = s;
   struct DnsTunnelDnsRankRecord* r;
 
+  DnsLog_log(DNS_LOG_DEBUG_FULL,". -- isBad : get dots [%s]\n",s);
+
   while (s[c]){
     if (s[c] == '.'){
       dot3 = dot2;
@@ -429,22 +482,24 @@ bool DnsTunnelOption::isBad(char *s){
     ++c;
   }
 
-  //printf("DNS-DEBUG  dots %d %d %d\n",dot3, dot2, dot1);
+  DnsLog_log(DNS_LOG_DEBUG_FULL,". -- isBad : dots %d %d %d [%s]\n",dot3, dot2, dot1,s);
 
-  if (!dot3)
+  if (!dot3){
+    DnsLog_log(DNS_LOG_DEBUG,". -- isBad : skipped [%s]\n",s);
     return 0;
+  }
 
   r = pushDnsRecord(s,dot3+1);
   if (r == nullptr || r->bad){
-    printf(r==nullptr?"DNS-DEBUG isBad : FAIL %s\n":"DNS-DEBUG isBad : earlyBAD %s\n",s);
+    DnsLog_log(DNS_LOG_INFO_BAD,r!=nullptr?". -- isBad : early BAD [%s]\n":". -- isBad : FAIL [%s]\n",s);
     return true;
   }
 
-  if (pushDnsRecordSub(s,dot3,r) > config.threshold){
-    printf("DNS-DEBUG isBad : lateBAD %s\n",s);
+  if (pushDnsRecordSub(s,dot3,r) > config.sizethreshold){
+    DnsLog_log(DNS_LOG_INFO_BAD,". -- isBad : late BAD [%s]\n",s);
     r->bad = true;
-  } //else
-    //printf("DNS-DEBUG isBad : GOOD\n");
+  } else
+    DnsLog_log(DNS_LOG_INFO_ALL,". -- isBad : GOOD [%s]\n",s);
 
   return r->bad;
 }
@@ -452,21 +507,25 @@ bool DnsTunnelOption::isBad(char *s){
 /* HERE WE PERFORM ACTUAL MATCHING */
 IpsOption::EvalStatus DnsTunnelOption::eval(Cursor& c, Packet*p)
 {
-    //printf("--- CTOR-Option::eval\n");
+    DnsLog_log(DNS_LOG_DEBUG_FULL,"eval : begin\n");
     Profile profile(dns_tunnel_perf_stats);
     if ( p->is_udp() && p->has_udp_data() && p->dsize >= MIN_DNS_SIZE){
       DnsTunnelPacket pkt = DnsTunnelPacket(p);
-      //printf("DNS-DEBUG: size: %d questions:%d\n",p->dsize,pkt.question_num);
+      DnsLog_log(DNS_LOG_DEBUG_FULL,"-- eval : query size: %d questions:%d\n",p->dsize,pkt.question_num);
 
       if (!pkt.malformed) {
         for(int i = 0 ; i < pkt.questions.size() ; ++i){
-          //printf("DNS-DEBUG  question %d : [%s]\n",i,pkt.questions[i].qname);
-          if (isBad((char*)pkt.questions[i].qname))
+          DnsLog_log(DNS_LOG_DEBUG_FULL,"-- eval : question enter %d : [%s]\n",i,pkt.questions[i].qname);
+          if (isBad((char*)pkt.questions[i].qname)){
+            DnsLog_log(DNS_LOG_DEBUG_FULL,"-- eval : exit MATCH %d : [%s]\n",i,pkt.questions[i].qname);
             return MATCH;
+          }
+          DnsLog_log(DNS_LOG_DEBUG_FULL,"-- eval : exit NO_MATCH %d : [%s]\n",i,pkt.questions[i].qname);
         }
         return NO_MATCH;
       }
     }
+    DnsLog_log(DNS_LOG_DEBUG_FULL,"eval : exit FAIL\n");
 
     return MATCH;
 }
@@ -477,13 +536,17 @@ IpsOption::EvalStatus DnsTunnelOption::eval(Cursor& c, Packet*p)
 
 static const Parameter s_params[] =
 {
-    { "threshold",      Parameter::PT_INT, "1:", nullptr, "Total length of negatively classified queries required to consider domain malicious" }, //name, type, range, default, description
+    { "scorethreshold", Parameter::PT_REAL, nullptr, "Min domain score to be considered not malicious" },
+    { "sizethreshold",  Parameter::PT_INT, "1:", nullptr, "Total length of negatively classified queries required to consider domain malicious" }, //name, type, range, default, description
     { "maxbuffersize",  Parameter::PT_INT, "32:", nullptr, "Max total length of buffered requests per domain" },
     { "minbufferlen",   Parameter::PT_INT, "1:200", nullptr, "Min number of buffered requests per domain" },
     { "windowsize",     Parameter::PT_INT, "4:32", nullptr, "domain analyze window size" },
     { "minreqsize",     Parameter::PT_INT, "1:32", nullptr, "Min subdomain length required to perform analyzis" },
-    { "bucketlen",      Parameter::PT_INT, "1024:", nullptr, "bucket size for domains storage" },
-    { "datafile",       Parameter::PT_STRING, nullptr, nullptr, "bucket size for domains storage" },
+    { "bucketlen",      Parameter::PT_INT, "1024:", nullptr, "Bucket size for domains storage" },
+    { "verbose",        Parameter::PT_INT, "1:8", nullptr, "Verbosity level (requires logfile)" },
+    { "datafile",       Parameter::PT_STRING, nullptr, nullptr, "File with n-gram scores" },
+    { "logfile",        Parameter::PT_STRING, nullptr, nullptr, "Log file" },
+    { "logprefix",      Parameter::PT_STRING, nullptr, nullptr, "Log prefix" },
 
     { nullptr, Parameter::PT_MAX, nullptr, nullptr, nullptr } //i guess it's the end of params?
 };
@@ -506,51 +569,83 @@ public:
     bool readDataFile(const char* filename);
 
 public:
-    struct DnsTunnelParams config;
-    struct DnsTunnelNgFreqs freqs;
+    struct DnsTunnelModuleParams config;
+    struct DnsTunnelOptionParams nconfig;
+    struct DnsTunnelNgFreqs nfreqs;
+    FILE* logfile;
 };
 
 DnsTunnelModule::DnsTunnelModule() : Module(s_name, s_help, s_params){
-  printf("--- CTOR-Module\n");
+  logfile = stdout;
+  config.verbose = DNS_LOG_STARTUP;
+  config.logprefix = "global";
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::New\n");
 }
 
 /* HERE WE INITIALIZE IPS OPTION PARAMS */
 bool DnsTunnelModule::begin(const char*, int, SnortConfig*)
 {
-    printf("--- CTOR-Module::Begin\n");
-    config.threshold = 32;
-    config.maxbuffersize = 256;
-    config.minbufferlen = 20;
-    config.windowsize = 8;
-    config.minreqsize = 4;
-    config.bucketlen = 8192;
-    config.datafile = nullptr;
-    freqs.data = nullptr;
-    freqs.ngnum = 0;
-    freqs.nglen = 0;
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::Begin\n");
+    nconfig.scorethreshold = 0;
+    nconfig.sizethreshold = 32;
+    nconfig.maxbuffersize = 256;
+    nconfig.minbufferlen = 20;
+    nconfig.windowsize = 8;
+    nconfig.minreqsize = 4;
+    nconfig.bucketlen = 8192;
+    nconfig.verbose = 0;
+    nconfig.datafile = nullptr;
+    nconfig.logfile = nullptr;
+    nconfig.logprefix = nullptr;
+    nfreqs.data = nullptr;
+    nfreqs.ngnum = 0;
+    nfreqs.nglen = 0;
     return true;
 }
 
 /* HERE WE READ IPS OPTION PARAMS */
 bool DnsTunnelModule::set(const char*, Value& v, SnortConfig*)
 {
-    printf("--- CTOR-Module::Set\n");
-    if ( v.is("threshold") )
-      config.threshold = v.get_uint32(); //hope it works the way I think it does...
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::Set\n");
+    if ( v.is("scorethreshold") )
+      nconfig.scorethreshold = v.get_real();  //hope it works the way I think it does...
+    if ( v.is("sizethreshold") )
+      nconfig.sizethreshold = v.get_uint32();
     else if ( v.is("maxbuffersize") )
-      config.maxbuffersize = v.get_uint32();
+      nconfig.maxbuffersize = v.get_uint32();
     else if ( v.is("minbufferlen") )
-      config.minbufferlen = v.get_uint8();
+      nconfig.minbufferlen = v.get_uint8();
     else if ( v.is("windowsize") )
-      config.windowsize = v.get_uint8();
+      nconfig.windowsize = v.get_uint8();
     else if ( v.is("bucketlen") )
-      config.bucketlen = v.get_uint32();
-    else if ( v.is("datafile") ){
-      if (config.datafile != nullptr)
+      nconfig.bucketlen = v.get_uint32();
+    else if ( v.is("verbose") )
+      nconfig.verbose = v.get_uint8();
+    else if ( v.is("logfile") ){
+      if (nconfig.logfile != nullptr)
         return false;
 
-      config.datafile = v.get_string();
-      return this->readDataFile(config.datafile);
+      const char* s = v.get_string();
+      nconfig.logfile = (char*)malloc(strlen(s)+1);
+      strcpy(nconfig.logfile,s);
+    }
+    else if ( v.is("logprefix") ){
+      if (nconfig.logprefix != nullptr)
+        return false;
+
+      const char* s = v.get_string();
+      nconfig.logprefix = (char*)malloc(strlen(s)+1);
+      strcpy(nconfig.logprefix,s);
+    }
+    else if ( v.is("datafile") ){
+      if (nconfig.datafile != nullptr)
+        return false;
+
+      const char* s = v.get_string();
+      nconfig.datafile = (char*)malloc(strlen(s)+1);
+      strcpy(nconfig.datafile,s);
+
+      return this->readDataFile(nconfig.datafile);
     }
     else
       return false;
@@ -560,17 +655,17 @@ bool DnsTunnelModule::set(const char*, Value& v, SnortConfig*)
 
 /* SANITY CHECKS */
 bool DnsTunnelModule::end(const char*, int, SnortConfig*){
-  printf("--- CTOR-Module::End\n");
-  if (config.datafile == nullptr){
-    printf("--- CTOR-Module::End::ERROR filename\n");
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End\n");
+  if (nconfig.datafile == nullptr){
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR filename\n");
     return false;
   }
-  if (config.minreqsize < freqs.nglen){
-    printf("--- CTOR-Module::End::ERROR minreqsize %d >= %d\n",config.minreqsize,freqs.nglen);
+  if (nconfig.minreqsize < nfreqs.nglen){
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR minreqsize %d >= %d\n",nconfig.minreqsize,nfreqs.nglen);
     return false;
   }
-  if (config.windowsize < freqs.nglen){
-    printf("--- CTOR-Module::End::ERROR windowsize %d >= %d\n",config.windowsize,freqs.nglen);
+  if (nconfig.windowsize < nfreqs.nglen){
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR windowsize %d >= %d\n",nconfig.windowsize,nfreqs.nglen);
     return false;
   }
 
@@ -578,7 +673,7 @@ bool DnsTunnelModule::end(const char*, int, SnortConfig*){
 }
 
 bool DnsTunnelModule::readDataFile(const char *filename){
-  printf("--- CTOR-Module::ReadDataFile (%s)\n",filename);
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadDataFile (%s)\n",filename);
   char ng[255];
   double score;
 
@@ -589,49 +684,49 @@ bool DnsTunnelModule::readDataFile(const char *filename){
 
   int csize = INIT_NGRAM_NUM;
   int len, ret;
-  freqs.data = (struct DnsTunnelNgFreqRecord*)malloc(sizeof(struct DnsTunnelNgFreqRecord)*csize);
-  if (freqs.data == nullptr)
+  nfreqs.data = (struct DnsTunnelNgFreqRecord*)malloc(sizeof(struct DnsTunnelNgFreqRecord)*csize);
+  if (nfreqs.data == nullptr)
     return false;
 
-  printf("--- CTOR-Module::ReadDataFile::beginRead\n");
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadDataFile::beginRead\n");
 
   while (true) {
-    //printf("--- CTOR-Module::ReadDataFile::line\n");
-    if (freqs.ngnum == csize){
-      printf("--- CTOR-Module::ReadDataFile::realloc\n");
-      struct DnsTunnelNgFreqRecord* newreq = (struct DnsTunnelNgFreqRecord*)realloc(freqs.data, sizeof(struct DnsTunnelNgFreqRecord)*csize*2);
+    DnsLog_log(DNS_LOG_STARTUP_VERBOSE,"--- CTOR-Module::ReadDataFile::line\n");
+    if (nfreqs.ngnum == csize){
+      DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadDataFile::realloc\n");
+      struct DnsTunnelNgFreqRecord* newreq = (struct DnsTunnelNgFreqRecord*)realloc(nfreqs.data, sizeof(struct DnsTunnelNgFreqRecord)*csize*2);
       if (newreq == nullptr){
-        free(freqs.data);
-        freqs.data = nullptr;
+        free(nfreqs.data);
+        nfreqs.data = nullptr;
         return false;
       }
-      freqs.data = newreq;
+      nfreqs.data = newreq;
       csize*=2;
     }
 
     ret = fscanf(fp, "%[^,],%lf\n", ng, &score);
-    //printf("--- CTOR-Module::ReadDataFile::fscanf %d %d %s %lf\n",freqs.nglen,ret,ng,score);
+    DnsLog_log(DNS_LOG_STARTUP_VERBOSE,"--- CTOR-Module::ReadDataFile::fscanf %d %d %s %lf\n",nfreqs.nglen,ret,ng,score);
     if (ret != 2)
       break;
     len = strlen(ng);
-    if (freqs.nglen == 0)
-      freqs.nglen = len;
-    else if (freqs.nglen != len){
-      printf("--- CTOR-Module::ReadDataFile::fail\n");
-      free(freqs.data);
-      freqs.data = nullptr;
+    if (nfreqs.nglen == 0)
+      nfreqs.nglen = len;
+    else if (nfreqs.nglen != len){
+      DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadDataFile::fail\n");
+      free(nfreqs.data);
+      nfreqs.data = nullptr;
       return false;
     }
 
-    freqs.data[freqs.ngnum].score = score;
-    freqs.data[freqs.ngnum].ng[0] = 0;
-    strncat(freqs.data[freqs.ngnum].ng,ng,MAX_NGRAM_LEN);
-    //printf("%s : %lf", freqs.data[freqs.ngnum].ng, score);
-    ++freqs.ngnum;
+    nfreqs.data[nfreqs.ngnum].score = score;
+    nfreqs.data[nfreqs.ngnum].ng[0] = 0;
+    strncat(nfreqs.data[nfreqs.ngnum].ng,ng,MAX_NGRAM_LEN);
+    DnsLog_log(DNS_LOG_STARTUP_VERBOSE,"--- CTOR-Module::ReadDataFile::freqs %s : %lf", nfreqs.data[nfreqs.ngnum].ng, score);
+    ++nfreqs.ngnum;
   }
   fclose(fp);
 
-  printf("--- CTOR-Module::ReadDataFile::success (%d)\n",freqs.ngnum);
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadDataFile::success (%d)\n",nfreqs.ngnum);
 
   return true;
 }
@@ -642,7 +737,6 @@ bool DnsTunnelModule::readDataFile(const char *filename){
 
 static Module* mod_ctor()
 {
-    printf("--- CTOR-Module::Ctor\n");
     return new DnsTunnelModule;
 }
 
@@ -653,9 +747,8 @@ static void mod_dtor(Module* m)
 
 static IpsOption* dns_tunnel_ctor(Module* p, OptTreeNode*)
 {
-    printf("--- CTOR-IPS::Ctor\n");
     DnsTunnelModule* m = (DnsTunnelModule*)p;
-    return new DnsTunnelOption(m->config, m->freqs);
+    return new DnsTunnelOption(m->nconfig, m->nfreqs);
 }
 
 static void dns_tunnel_dtor(IpsOption* p)
