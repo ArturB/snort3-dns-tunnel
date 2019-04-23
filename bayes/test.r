@@ -11,9 +11,9 @@ source("train.r")
 # Poprawne zapytania #
 ######################
 
-validDns.csv <- read.csv(file = "valid-queries.csv", header = FALSE)
+validDns.csv <- read.csv(file = "data/valid-queries.csv", header = FALSE)
 validDns.domains = validDns.csv$V2
-connVQ2 <- file("valid-queries-2.txt", open = "r")
+connVQ2 <- file("data/valid-queries-2.txt", open = "r")
 validDns.domains2 = readLines(connVQ2)
 close(connVQ2)
 
@@ -21,8 +21,8 @@ close(connVQ2)
 # Z³oœliwe zapytania #
 ######################
 
-connHEX <- file("evil-queries-hex.txt", open = "r")
-connB32 <- file("evil-queries-base32.txt", open = "r")
+connHEX <- file("data/evil-queries-hex.txt", open = "r")
+connB32 <- file("data/evil-queries-base32.txt", open = "r")
 evilDns.domainsHEX = readLines(connHEX)
 evilDns.domainsB32 = readLines(connB32)
 close(connHEX)
@@ -121,18 +121,22 @@ testDnsBayes <- function(validSample, evilSample, ngrams, queryLen = 8, lenThr =
 # Listuj False-Positives #
 ##########################
 
-printFalsePositives <- function(lenThr = 3, sampleSize = 10000) {
+printFalsePositives <- function(validSample, ngrams, lenThr = 3, sampleSize = 10000) {
 
-  testDns.validSample = sample(validDns.domains2, sampleSize)
+  testDns.validSample = sample(validSample, sampleSize)
   for(d in testDns.validSample) {
-    if(! isValidDns(toString(d), totalDns.ngrams, lenThr = lenThr)) {
-      print(paste0("False positive: ", d))
+    if(! isValidDns(d, ngrams, lenThr = lenThr)) {
+      print(paste0(d))
     }
   }
   
 }
 
-testDnsBayes(validDns.polishDomains, 
+printFalsePositives(unique(validDns.polishDomains), 
+                    dnsBayes.ngrams, 
+                    sampleSize = length(unique(validDns.polishDomains)))
+
+testDnsBayes(validDns.domains, 
              evilDns.domains2, 
              dnsBayes.ngrams,
              queryLen = 8, 

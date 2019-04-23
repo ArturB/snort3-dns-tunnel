@@ -102,7 +102,11 @@ trainDnsBayes = function(validNgrams, evilNgrams, factor) {
 }
 
 # Learn final classifier
-dnsBayes.ngrams = trainDnsBayes(validDns.ngrams, evilDns.ngrams, 20)
+dnsBayes.ngrams = trainDnsBayes(
+  validNgrams = validDns.ngrams, 
+  evilNgrams = evilDns.ngrams, 
+  factor = 100
+)
 # Write results to file
 dnsBayes.ngrams.frame = data.frame(
   ngram = names( dnsBayes.ngrams),
