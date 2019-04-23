@@ -30,6 +30,7 @@
 #include "profiler/profiler.h"
 #include "protocols/packet.h"
 #include "protocols/udp.h"
+#include <math.h>
 
 using namespace snort;
 
@@ -42,10 +43,62 @@ static THREAD_LOCAL ProfileStats dns_tunnel_perf_stats;
 // helpers
 //-------------------------------------------------------------------------
 
+#define MAX_NGRAM_LEN 5
+#define DEFAULT_SCORE 0
 #define MIN_DNS_SIZE 12
+#define INIT_NGRAM_NUM 32768
+
+
+unsigned long djb2(unsigned const char *str){
+  unsigned long hash = 5381;
+  int c;
+
+  while (c = *str++)
+    hash = ((hash << 5) + hash) + c;
+
+  return hash;
+}
+
 
 struct DnsTunnelParams {
-  u_int8_t testarg;
+  u_int32_t threshold;      //total length of negatively classified queries to consider domain malicious
+  u_int32_t maxbuffersize;  //max total length of buffered requests
+  u_int8_t minbufferlen;    //min number of buffered requests (more important than maxbuffersize)
+  u_int8_t windowsize;      //size of classification window
+  u_int8_t minreqsize;      //minimum subdomain size required to start prediction
+  u_int32_t bucketlen;      //size of domains bucket
+  const char* datafile;
+};
+
+struct DnsTunnelNgFreqRecord {
+  double score;
+  char ng[MAX_NGRAM_LEN];         //minimize memory fragmentation
+};
+
+struct DnsTunnelNgFreqs {
+  struct DnsTunnelNgFreqRecord* data;   //ngrams freq data
+  u_int32_t ngnum;                //ngram list length
+  u_int8_t nglen;                 //ngram record length
+};
+
+struct DnsTunnelDnsRankRecordSub {
+  struct DnsTunnelDnsRankRecordSub* next;
+  char* domain;
+  u_int8_t len;
+  bool bad;
+};
+
+struct DnsTunnelDnsRankRecord {
+  char* domain;
+  struct DnsTunnelDnsRankRecord* next;
+  struct DnsTunnelDnsRankRecordSub* subdomain;
+  u_int8_t off;
+  bool bad;
+};
+
+struct DnsTunnelDnsRank {
+  u_int32_t recnum;
+  struct DnsTunnelDnsRankRecord** data;
 };
 
 struct DnsTunnelPacket {
@@ -89,14 +142,22 @@ DnsTunnelPacket::DnsTunnelPacket(Packet *p) :
       unsigned char buf[255];
       buf[0]=0;
 
-      while(cur < p->dsize && p->data[cur]){
+      //printf("DNS-DEBUG: cur: %d size: %d\n",cur,p->dsize);
+
+      while(cur < p->dsize && p->data[cur] && cur+p->data[cur] < p->dsize){
+        //printf("DNS-DEBUG: cur: %d exp len: %d buf %s|\n",cur,p->data[cur],buf);
+
         strncat((char*)&buf[q.qlen],(char*)&(p->data[cur+1]),p->data[cur]);
         q.qlen += p->data[cur]+1;
         strcat((char*)&buf[q.qlen-1],".");
         cur += 1+p->data[cur];
+
+        //printf("DNS-DEBUG: newcur: %d buf %s|\n",cur,buf);
       }
 
-      if (cur+5 < p->dsize){
+      //printf("DNS-DEBUG: done cur: %d size: %d\n",cur,p->dsize);
+
+      if (p->data[cur] != 0 || cur+5 > p->dsize){
         malformed = true;
         break;
       }
@@ -124,29 +185,66 @@ DnsTunnelPacket::~DnsTunnelPacket(){
 class DnsTunnelOption : public IpsOption
 {
 public:
-    DnsTunnelOption(const DnsTunnelParams& c) : IpsOption(s_name)
-    { config = c; printf("--- CTOR-Option\n"); }
+    DnsTunnelOption(const DnsTunnelParams& c, const DnsTunnelNgFreqs &f);
+    ~DnsTunnelOption();
 
     uint32_t hash() const override;
     bool operator==(const IpsOption&) const override;
 
     EvalStatus eval(Cursor&, Packet*p) override;
 
+    unsigned long ngBinSearch(const char* s);
+    struct DnsTunnelDnsRankRecord* pushDnsRecord(const char* s, u_int8_t off);
+    u_int32_t pushDnsRecordSub(const char* s, u_int8_t len, struct DnsTunnelDnsRankRecord* r);
+    double getNgScore(char* s, u_int8_t);
+    bool isBad(char* s);
+
+
 private:
-    DnsTunnelParams config;
+    struct DnsTunnelParams config;
+    struct DnsTunnelNgFreqs freqs;
+    struct DnsTunnelDnsRank rank;
 };
+
+DnsTunnelOption::DnsTunnelOption(const DnsTunnelParams &c, const DnsTunnelNgFreqs &f) : IpsOption(s_name){
+  printf("--- CTOR-Option\n");
+
+  config.threshold = c.threshold;
+  config.maxbuffersize = c.maxbuffersize;
+  config.minbufferlen = c.minbufferlen;
+  config.windowsize = c.windowsize;
+  config.minreqsize = c.minreqsize;
+  config.bucketlen = c.bucketlen;
+  config.datafile = c.datafile;
+
+  freqs.ngnum = f.ngnum;
+  freqs.nglen = f.nglen;
+  freqs.data = f.data;
+
+  rank.recnum = config.bucketlen;
+  rank.data = (struct DnsTunnelDnsRankRecord**)malloc(sizeof(struct DnsTunnelDnsRankRecord*)*rank.recnum);
+  for (int i = 0 ; i < rank.recnum ; ++i)
+    rank.data[i] = nullptr;
+}
+
+DnsTunnelOption::~DnsTunnelOption(){
+   free(freqs.data);
+}
 
 /* USED TO DETECT EXACTLY THE SAME RULE ENTRIES, AVOIDS DUPLICATION */
 uint32_t DnsTunnelOption::hash() const
 {
+    printf("--- CTOR-Option::hash\n");
     uint32_t a, b, c;
 
-    a = config.testarg;
-    b = 1;  //arbitrary crap, change to config params later
-    c = 2;
+    a = config.threshold+(64*config.maxbuffersize);
+    b = config.windowsize+(255*config.minbufferlen);
+    c = freqs.ngnum*freqs.nglen;
 
     mix_str(a,b,c,get_name());
     finalize(a,b,c);
+
+    printf("--- CTOR-Option::hash-exit %d\n",c);
 
     return c;
 }
@@ -154,34 +252,205 @@ uint32_t DnsTunnelOption::hash() const
 /* USED TO DETECT EXACTLY THE SAME RULE ENTRIES, AVOIDS DUPLICATION */
 bool DnsTunnelOption::operator==(const IpsOption& ips) const
 {
+    printf("--- CTOR-Option::operator==\n");
     if ( strcmp(s_name, ips.get_name()) )
         return false;
 
     const DnsTunnelOption& rhs = (const DnsTunnelOption&)ips;
-    return ( config.testarg == rhs.config.testarg );
+    int ret = (
+          false &&    //this significantly simplifies memory deallocation
+          config.threshold == rhs.config.threshold &&
+          config.maxbuffersize == rhs.config.maxbuffersize &&
+          config.minbufferlen == rhs.config.minbufferlen &&
+          config.windowsize == rhs.config.windowsize &&
+          config.minreqsize == rhs.config.minreqsize &&
+          config.bucketlen == rhs.config.bucketlen &&
+          strcmp(config.datafile,rhs.config.datafile) == 0);
+
+    printf("--- CTOR-Option::operator== (%d)\n",ret);
+    return ret;
+}
+
+unsigned long DnsTunnelOption::ngBinSearch(const char *s){
+  int b = 0;
+  int m, ret;
+  int t = freqs.ngnum - 1;
+
+  while(b <= t){
+    m = (b + t)/2;
+    if ((ret = strncmp(freqs.data[m].ng, s, freqs.nglen)) == 0) return m;
+    else if (ret > 0) t = m - 1;
+    else if (ret < 0) b = m + 1;
+  }
+  return freqs.ngnum; //not found
+}
+
+struct DnsTunnelDnsRankRecord* DnsTunnelOption::pushDnsRecord(const char *s, u_int8_t off){
+  unsigned long pos = djb2((const unsigned char*)s+off) % rank.recnum;
+  struct DnsTunnelDnsRankRecord** r = &rank.data[pos];
+
+  while (*r != nullptr && strcmp((*r)->domain,s+off) != 0)
+    r = &((*r)->next);
+
+  if (*r != nullptr){
+    printf("DNS-DEBUG pushRecord : found %s | %s (%s)\n",(*r)->domain, s+off, s);
+    return *r;
+  }
+
+  if ((*r = (struct DnsTunnelDnsRankRecord*)malloc(sizeof(struct DnsTunnelDnsRankRecord))) == nullptr)
+    return nullptr;
+  if (((*r)->domain = (char*)malloc(strlen(s+off)+1)) == nullptr){
+    free(*r);
+    *r = nullptr;
+    return nullptr;
+  }
+  strcpy((*r)->domain,s+off);
+  (*r)->next = nullptr;
+  (*r)->subdomain = nullptr;
+  (*r)->off = off;
+  (*r)->bad = false;
+
+  printf("DNS-DEBUG pushRecord : new %s\n",(*r)->domain);
+
+  return *r;
+}
+
+double DnsTunnelOption::getNgScore(char *s, u_int8_t len){
+  double worst = INFINITY;
+  int off = 0;
+  if (len < config.minreqsize)
+    return 0;
+  while (off < len){
+    double score = 0;
+    int limiter = ((len-off) > config.windowsize ? config.windowsize : len);
+    for (int i = 0 ; i < limiter-freqs.nglen ; ++i){
+      unsigned long ind = ngBinSearch(s+off+i);
+      if (ind < freqs.ngnum)
+        score+=freqs.data[ind].score;
+    }
+    off+=limiter;
+    if (score < worst)
+      worst = score;
+  }
+  return worst;
+}
+
+u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct DnsTunnelDnsRankRecord *r){
+  struct DnsTunnelDnsRankRecordSub** b = &r->subdomain;
+  u_int32_t totlen = 0;
+  u_int32_t badlen = 0;
+  u_int8_t subnum = 0;
+  while (*b != nullptr && ((*b)->len != len || strncmp((*b)->domain,s,len) != 0)){
+    totlen+=(*b)->len;
+    ++subnum;
+    if ((*b)->bad)
+      badlen+=(*b)->len;
+    b = &((*b)->next);
+  }
+
+  printf("DNS-DEBUG pushRecordSub : badlenA %d\n",badlen);
+
+  if (*b == nullptr){   //not found
+    printf("DNS-DEBUG pushRecordSub : not found %s %d\n",s,len);
+    if ((*b = (struct DnsTunnelDnsRankRecordSub*)malloc(sizeof(struct DnsTunnelDnsRankRecordSub))) == nullptr)
+      return -1;
+    if (((*b)->domain = (char*)malloc(len+1)) == nullptr){
+      free(*b);
+      *b = nullptr;
+      return -1;
+    }
+    strncpy((*b)->domain,s,len);
+    (*b)->domain[len]=0;
+    (*b)->len = len;
+    (*b)->next = nullptr;
+
+    double score = getNgScore((*b)->domain, len);
+    printf("DNS-DEBUG pushRecordSub : score %lf\n",score);
+    if (score < 0)
+      (*b)->bad = true;
+  } else
+    printf("DNS-DEBUG pushRecordSub : found %s %d\n",(*b)->domain,len);
+
+  while (*b != nullptr){
+    totlen+=(*b)->len;
+    ++subnum;
+    if ((*b)->bad)
+      badlen+=(*b)->len;
+    b = &((*b)->next);
+  }
+
+  while (totlen > config.maxbuffersize && subnum > config.minbufferlen){
+    b = &r->subdomain;
+    printf("DNS-DEBUG pushRecordSub : cleanup %s\n",(*b)->domain);
+    struct DnsTunnelDnsRankRecordSub* bb = (*b)->next;
+    free((*b)->domain);
+    free(*b);
+    *b = bb;
+  }
+
+  printf("DNS-DEBUG pushRecordSub : badlenB %d\n",badlen);
+
+  return badlen;
+}
+
+bool DnsTunnelOption::isBad(char *s){
+  u_int8_t dot1 = 0,
+           dot2 = 0,
+           dot3 = 0,
+           c = 0;
+  char* cur = s;
+  struct DnsTunnelDnsRankRecord* r;
+
+  while (s[c]){
+    if (s[c] == '.'){
+      dot3 = dot2;
+      dot2 = dot1;
+      dot1 = c;
+    }
+    ++c;
+  }
+
+  printf("DNS-DEBUG  dots %d %d %d\n",dot3, dot2, dot1);
+
+  if (!dot3)
+    return 0;
+
+  r = pushDnsRecord(s,dot3+1);
+  if (r == nullptr || r->bad){
+    printf(r==nullptr?"DNS-DEBUG isBad : FAIL\n":"DNS-DEBUG isBad : earlyBAD\n");
+    return true;
+  }
+
+  if (pushDnsRecordSub(s,dot3,r) > config.threshold){
+    printf("DNS-DEBUG isBad : lateBAD\n");
+    r->bad = true;
+  } else
+    printf("DNS-DEBUG isBad : GOOD\n");
+
+  return r->bad;
 }
 
 /* HERE WE PERFORM ACTUAL MATCHING */
 IpsOption::EvalStatus DnsTunnelOption::eval(Cursor& c, Packet*p)
 {
+    printf("--- CTOR-Option::eval\n");
     Profile profile(dns_tunnel_perf_stats);
-
     if ( p->is_udp() && p->has_udp_data() && p->dsize >= MIN_DNS_SIZE){
-        DnsTunnelPacket pkt = DnsTunnelPacket(p);
-        printf("DNS-DEBUG: size: %d questions:%d\n",
-               p->dsize,pkt.question_num);
-        if (pkt.malformed){
-          printf("DNS-DEBUG: MALFORMED\n");
-        } else
-          for(int i = 0 ; i < pkt.questions.size() ; ++i)
-            printf("DNS-DEBUG  question %d : %s\n",i,pkt.questions[i].qname);
-        if (pkt.question_num>0 && pkt.questions[0].qlen > config.testarg)
-          return MATCH;
-        else
-          return NO_MATCH;
+      DnsTunnelPacket pkt = DnsTunnelPacket(p);
+      printf("DNS-DEBUG: size: %d questions:%d\n",
+             p->dsize,pkt.question_num);
+
+      if (!pkt.malformed) {
+        for(int i = 0 ; i < pkt.questions.size() ; ++i){
+          printf("DNS-DEBUG  question %d : [%s]\n",i,pkt.questions[i].qname);
+          if (isBad((char*)pkt.questions[i].qname))
+            return MATCH;
+        }
+        return NO_MATCH;
+      }
     }
 
-    return NO_MATCH;
+    return MATCH;
 }
 
 //-------------------------------------------------------------------------
@@ -190,8 +459,13 @@ IpsOption::EvalStatus DnsTunnelOption::eval(Cursor& c, Packet*p)
 
 static const Parameter s_params[] =
 {
-    { "testarg", Parameter::PT_INT, "1:50", nullptr,
-      "just testing if it works" }, //name, type, range, default, description
+    { "threshold",      Parameter::PT_INT, "1:", nullptr, "Total length of negatively classified queries required to consider domain malicious" }, //name, type, range, default, description
+    { "maxbuffersize",  Parameter::PT_INT, "32:", nullptr, "Max total length of buffered requests per domain" },
+    { "minbufferlen",   Parameter::PT_INT, "1:200", nullptr, "Min number of buffered requests per domain" },
+    { "windowsize",     Parameter::PT_INT, "4:32", nullptr, "domain analyze window size" },
+    { "minreqsize",     Parameter::PT_INT, "1:32", nullptr, "Min subdomain length required to perform analyzis" },
+    { "bucketlen",      Parameter::PT_INT, "1024:", nullptr, "bucket size for domains storage" },
+    { "datafile",       Parameter::PT_STRING, nullptr, nullptr, "bucket size for domains storage" },
 
     { nullptr, Parameter::PT_MAX, nullptr, nullptr, nullptr } //i guess it's the end of params?
 };
@@ -199,10 +473,11 @@ static const Parameter s_params[] =
 class DnsTunnelModule : public Module
 {
 public:
-    DnsTunnelModule() : Module(s_name, s_help, s_params) { printf("--- CTOR-Module\n"); }
+    DnsTunnelModule();
 
     bool begin(const char*, int, SnortConfig*) override;
     bool set(const char*, Value&, SnortConfig*) override;
+    bool end(const char*, int, SnortConfig*) override;
 
     ProfileStats* get_profile() const override
     { return &dns_tunnel_perf_stats; }
@@ -210,27 +485,137 @@ public:
     Usage get_usage() const override
     { return DETECT; }
 
+    bool readDataFile(const char* filename);
+
 public:
-    DnsTunnelParams data;
+    struct DnsTunnelParams config;
+    struct DnsTunnelNgFreqs freqs;
 };
+
+DnsTunnelModule::DnsTunnelModule() : Module(s_name, s_help, s_params){
+  printf("--- CTOR-Module\n");
+}
 
 /* HERE WE INITIALIZE IPS OPTION PARAMS */
 bool DnsTunnelModule::begin(const char*, int, SnortConfig*)
 {
-    data.testarg = 0;
+    printf("--- CTOR-Module::Begin\n");
+    config.threshold = 32;
+    config.maxbuffersize = 256;
+    config.minbufferlen = 20;
+    config.windowsize = 8;
+    config.minreqsize = 4;
+    config.bucketlen = 8192;
+    config.datafile = nullptr;
+    freqs.data = nullptr;
+    freqs.ngnum = 0;
+    freqs.nglen = 0;
     return true;
 }
 
 /* HERE WE READ IPS OPTION PARAMS */
 bool DnsTunnelModule::set(const char*, Value& v, SnortConfig*)
 {
-    printf("--- CTOR-Module::Parse\n");
-    if ( v.is("testarg") )
-      data.testarg = v.get_uint8(); //hope it works the way I think it does...
+    printf("--- CTOR-Module::Set\n");
+    if ( v.is("threshold") )
+      config.threshold = v.get_uint32(); //hope it works the way I think it does...
+    else if ( v.is("maxbuffersize") )
+      config.maxbuffersize = v.get_uint32();
+    else if ( v.is("minbufferlen") )
+      config.minbufferlen = v.get_uint8();
+    else if ( v.is("windowsize") )
+      config.windowsize = v.get_uint8();
+    else if ( v.is("bucketlen") )
+      config.bucketlen = v.get_uint32();
+    else if ( v.is("datafile") ){
+      if (config.datafile != nullptr)
+        return false;
+
+      config.datafile = v.get_string();
+      return this->readDataFile(config.datafile);
+    }
     else
       return false;
 
-    return data.testarg>2;
+    return true;
+}
+
+/* SANITY CHECKS */
+bool DnsTunnelModule::end(const char*, int, SnortConfig*){
+  printf("--- CTOR-Module::End\n");
+  if (config.datafile == nullptr){
+    printf("--- CTOR-Module::End::ERROR filename\n");
+    return false;
+  }
+  if (config.minreqsize < freqs.nglen){
+    printf("--- CTOR-Module::End::ERROR minreqsize %d >= %d\n",config.minreqsize,freqs.nglen);
+    return false;
+  }
+  if (config.windowsize < freqs.nglen){
+    printf("--- CTOR-Module::End::ERROR windowsize %d >= %d\n",config.windowsize,freqs.nglen);
+    return false;
+  }
+
+  return true;
+}
+
+bool DnsTunnelModule::readDataFile(const char *filename){
+  printf("--- CTOR-Module::ReadDataFile (%s)\n",filename);
+  char ng[255];
+  double score;
+
+  FILE *fp;
+
+  if((fp = fopen(filename, "r")) == NULL)
+      return false;
+
+  int csize = INIT_NGRAM_NUM;
+  int len, ret;
+  freqs.data = (struct DnsTunnelNgFreqRecord*)malloc(sizeof(struct DnsTunnelNgFreqRecord)*csize);
+  if (freqs.data == nullptr)
+    return false;
+
+  printf("--- CTOR-Module::ReadDataFile::beginRead\n");
+
+  while (true) {
+    //printf("--- CTOR-Module::ReadDataFile::line\n");
+    if (freqs.ngnum == csize){
+      printf("--- CTOR-Module::ReadDataFile::realloc\n");
+      struct DnsTunnelNgFreqRecord* newreq = (struct DnsTunnelNgFreqRecord*)realloc(freqs.data, sizeof(struct DnsTunnelNgFreqRecord)*csize*2);
+      if (newreq == nullptr){
+        free(freqs.data);
+        freqs.data = nullptr;
+        return false;
+      }
+      freqs.data = newreq;
+      csize*=2;
+    }
+
+    ret = fscanf(fp, "%[^,],%lf\n", ng, &score);
+    //printf("--- CTOR-Module::ReadDataFile::fscanf %d %d %s %lf\n",freqs.nglen,ret,ng,score);
+    if (ret != 2)
+      break;
+    len = strlen(ng);
+    if (freqs.nglen == 0)
+      freqs.nglen = len;
+    else if (freqs.nglen != len){
+      printf("--- CTOR-Module::ReadDataFile::fail\n");
+      free(freqs.data);
+      freqs.data = nullptr;
+      return false;
+    }
+
+    freqs.data[freqs.ngnum].score = score;
+    freqs.data[freqs.ngnum].ng[0] = 0;
+    strncat(freqs.data[freqs.ngnum].ng,ng,MAX_NGRAM_LEN);
+    //printf("%s : %lf", freqs.data[freqs.ngnum].ng, score);
+    ++freqs.ngnum;
+  }
+  fclose(fp);
+
+  printf("--- CTOR-Module::ReadDataFile::success (%d)\n",freqs.ngnum);
+
+  return true;
 }
 
 //-------------------------------------------------------------------------
@@ -239,6 +624,7 @@ bool DnsTunnelModule::set(const char*, Value& v, SnortConfig*)
 
 static Module* mod_ctor()
 {
+    printf("--- CTOR-Module::Ctor\n");
     return new DnsTunnelModule;
 }
 
@@ -249,8 +635,9 @@ static void mod_dtor(Module* m)
 
 static IpsOption* dns_tunnel_ctor(Module* p, OptTreeNode*)
 {
+    printf("--- CTOR-IPS::Ctor\n");
     DnsTunnelModule* m = (DnsTunnelModule*)p;
-    return new DnsTunnelOption(m->data);
+    return new DnsTunnelOption(m->config, m->freqs);
 }
 
 static void dns_tunnel_dtor(IpsOption* p)
