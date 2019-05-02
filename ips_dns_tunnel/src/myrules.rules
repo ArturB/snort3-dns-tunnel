@@ -1,0 +1,6 @@
+#alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop5" ; dns_tunnel:datafile /mnt/dns2.freqs ; sid:50003)
+#alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop5" ; dns_tunnel:datafile /mnt/dns2.freqs ; sid:50003)
+alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop5" ; dns_tunnel:datafile /mnt/dns2.freqs, verbose 8, logfile /mnt/log-32-20-256-A.dnslog, logprefix log1 ; sid:50003)
+alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop6" ; dns_tunnel:datafile /mnt/dns2.freqs, verbose 8, sizethreshold 72, minbufferlen 32, maxbuffersize 512, logfile /mnt/log-72-32-512-A.dnslog, logprefix log2 ; sid:50004)
+alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop5" ; dns_tunnel:datafile /mnt/dns4.freqs, verbose 8, logfile /mnt/log-32-20-256-B.dnslog, logprefix log1 ; sid:50005)
+alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop6" ; dns_tunnel:datafile /mnt/dns4.freqs, verbose 8, sizethreshold 72, minbufferlen 32, maxbuffersize 512, logfile /mnt/log-72-32-512-B.dnslog, logprefix log2 ; sid:50006)
