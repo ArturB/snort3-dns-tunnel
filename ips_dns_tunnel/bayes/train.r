@@ -9,7 +9,7 @@ allSubStrings <- function(str, n = 3) {
   substring(str, 1:(nchar(str)-n+1), n:nchar(str))
 }
 
-setwd("/Users/artur/Projekty/kant-security/bayes/")
+setwd("/Users/artur/Projekty/kant-security/ips_dns_tunnel/bayes/")
 source("load-data.r")
 
 trainNgrams = function(object, domains) {

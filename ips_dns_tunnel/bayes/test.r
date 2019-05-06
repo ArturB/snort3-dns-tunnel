@@ -4,7 +4,7 @@
 ####      Artur M. Brodzki       ####
 #####################################
 
-setwd("/Users/artur/Projekty/kant-security/bayes/")
+setwd("/Users/artur/Projekty/kant-security/ips_dns_tunnel/bayes/")
 source("train.r")
 
 ######################
