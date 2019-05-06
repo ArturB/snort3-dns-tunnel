@@ -1,0 +1,1 @@
+reject udp any any -> any 53 (msg:"Whoop6" ; dns_tunnel:datafile /etc/snortd/dns.freqs, verbose 8, sizethreshold 72, minbufferlen 32, maxbuffersize 512, logfile /var/log/snortd.log, logprefix snortd ; sid:50004)

@@ -1,4 +1,0 @@
-alert icmp $EXTERNAL_NET any -> $HOME_NET any (msg:"Whoop" ; dns_tunnel:testarg 5 ; sid:50000)
-alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop20" ; dns_tunnel:testarg 20 ; sid:50001)
-alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop10" ; dns_tunnel:testarg 10 ; sid:50002)
-alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"Whoop5" ; dns_tunnel:testarg 5 ; sid:50003)

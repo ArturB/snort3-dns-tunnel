@@ -1,0 +1,13 @@
+[Unit]
+Description=Snort 3 inline bridge
+Requires=network-online.target
+
+[Service]
+ExecStart=/bin/bash snortd-start.sh
+ExecStartPost=/bin/bash -c 'pgrep snort > /var/run/snortd.pid'
+PIDFile=/var/run/snortd.pid
+Type=forking
+
+[Install]
+WantedBy=default.target
+

@@ -1,0 +1,9 @@
+\BOOKMARK [1][-]{section.1}{Wstep}{}% 1
+\BOOKMARK [1][-]{section.2}{Tunelowanie DNS}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{Zasada dzia\233ania}{section.2}% 3
+\BOOKMARK [2][-]{subsection.2.2}{Metody wykrywania}{section.2}% 4
+\BOOKMARK [1][-]{section.3}{Scenariusz projektowy}{}% 5
+\BOOKMARK [1][-]{section.4}{Implementacja}{}% 6
+\BOOKMARK [2][-]{subsection.4.1}{Aplikacja nadawcza i odbiorcza}{section.4}% 7
+\BOOKMARK [2][-]{subsection.4.2}{Wtyczka systemu Snort}{section.4}% 8
+\BOOKMARK [1][-]{section.5}{Podsumowanie}{}% 9
