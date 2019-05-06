@@ -11,6 +11,15 @@ Vagrant.configure("2") do |bcyb|
     v.customize ["natnetwork", "add", "--netname", "BCYB", "--network", "10.0.0.0/8"]
   end
 
+  bcyb.vm.define "Fedora29" do |fedora29|
+    fedora29.vm.box = "fedora/29-cloud-base"
+    fedora29.vm.provider "virtualbox" do |v|
+      v.gui = true
+      v.name = "Fedora29"
+    end
+    #fedora-clean.vm.provision "shell", path: "ips1.sh"
+  end
+
   bcyb.vm.define "IPS1" do |ips1|
     ips1.vm.box = "fedora/29-cloud-base"
     ips1.vm.provider "virtualbox" do |v|
