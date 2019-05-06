@@ -6,4 +6,7 @@
 \BOOKMARK [1][-]{section.4}{Implementacja}{}% 6
 \BOOKMARK [2][-]{subsection.4.1}{Aplikacja nadawcza i odbiorcza}{section.4}% 7
 \BOOKMARK [2][-]{subsection.4.2}{Wtyczka systemu Snort}{section.4}% 8
-\BOOKMARK [1][-]{section.5}{Podsumowanie}{}% 9
+\BOOKMARK [3][-]{subsubsection.4.2.1}{Struktura plik\363w zr\363d\233owych}{subsection.4.2}% 9
+\BOOKMARK [3][-]{subsubsection.4.2.2}{Algorytm klasyfikacji}{subsection.4.2}% 10
+\BOOKMARK [1][-]{section.5}{Testy}{}% 11
+\BOOKMARK [1][-]{section.6}{Podsumowanie}{}% 12

@@ -18,7 +18,7 @@
 \author{Artur M. Brodzki \\ Damian Chiliński \\ Krzysztof Sznejder}
 \date{\today}
 \subject{BCYB 19L}
-\title{Projekt -- dokumentacja wstĘpna}
+\title{Projekt -- dokumentacja koŃcowa}
 \fancyhead[L]{Brodzki, Chiliński, Sznejder}
 \fancyhead[R]{BCYB 19L}
 
@@ -39,25 +39,25 @@ Tunelowanie DNS należy do metod steganograficznych i pozwala na prowadzenie nie
 \begin{enumerate}
 	\item Atakujący rejestruje domenę, np. \texttt{best-malware.com} i tworzy dla niej własny serwer autorytatywny. 
 	\item Atakujący instaluje złośliwe oprogramowanie na systemach ofiary, które wykrada z nich wrażliwe dane, np. hasło bankowe. 
-	\item Oprogramowanie atakującego koduje uzyskane informacje jako subdomenę, np: \\  \texttt{76756C6E657261626C65.bestmalware.win} odpowiadające jej zapytanie DNS. Zapytanie na serwer atakującego, który może odebrać i zdekodować ukryte informacje. Dane można kodować zasadniczo za pomocą kodowania szesnastkowego lub base32. Wynika to ze specyfikacji protokołu DNS, który dopuszcza w zapytaniach ograniczony zestaw znaków. 
+	\item Oprogramowanie atakującego koduje uzyskane informacje jako subdomenę, np: \\  \texttt{76756C6E657261626C65.bestmalware.win} i wysyła odpowiadające jej zapytanie DNS. Trafia ono na serwer atakującego, który może odebrać i zdekodować ukryte informacje. Dane można kodować zasadniczo za pomocą kodowania szesnastkowego lub base32. Wynika to ze specyfikacji protokołu DNS, który dopuszcza w zapytaniach ograniczony zestaw znaków. 
 	\item Aby przeprowadzić transmisję w drugą stronę, wystarczy zakodować informację w pakiecie będącym odpowiedzią na zapytanie. Najczęściej będzie to więc pakiet typu A, choć możliwe jest kodowanie danych z użyciem każdego typu rekodu DNS. 
 \end{enumerate}
 Skuteczność tego ataku wynika z kluczowej roli, jaką odgrywa DNS w komunikacji internetowej. Jego zablokowanie może uniemożliwić działanie sieci, dlatego zapytania DNS bardzo rzadko są ograniczane przez administratorów, i to nawet w sieciach o restrykcyjnych wymogach bezpieczeństwa. 
 
 \subsection{Metody wykrywania}
-Aby skutecznie blokować transmisję wykorzystującą tunelowanie DNS, konieczne jest wiarygodne odróżnienie złośliwych zapytań DNS od tych prawidłowych. Stosuje się w tym celu zbiór heurystyk, opartych m.in. o:
+Aby skutecznie zablokować transmisję wykorzystującą tunelowanie DNS, konieczne jest wiarygodne odróżnienie złośliwych zapytań DNS od tych prawidłowych. Stosuje się w tym celu zbiór heurystyk, opartych m.in. o:
 \begin{itemize}
 	\item analizę długości i entropii zapytania -- większość ,,normalnych'' domen nie przekracza kilkunastu znaków i charakteryzuje się niewielką entropią, typową dla słów pochodzących z języka naturalnego;
 	\item analizę częstości -- znaczący wzrost liczby wykonywanych zapytań DNS może sugerować, że część z nich jest niepożądana;
-	\item metody słownikowe -- ,,prawdziwe'' domeny zazwyczaj składają się ze słów pochodzących z języka naturalnego lub zbudowanyh na ich podstawie neologizmów;
+	\item metody słownikowe -- ,,prawdziwe'' domeny zazwyczaj składają się ze słów pochodzących z języka naturalnego lub zbudowanych na ich podstawie neologizmów;
 	\item uczenie maszynowe.
 \end{itemize}
-W naszym projekcie zdecydowaliśmy się wykorzystać autorski algorytm uczenia maszynowego oparty na naiwnym klasyfikatorze Bayesa. Klasyfikator został nauczony na zbiorze zapytań DNS wygenerowanych i przechwyconych przez nas podczas kilku tygodni codzienniego użytkowania naszych domowych komputerów. Szczegółowy opis algorytmu znajduje sie w sekcji \ref{sec:plugin} 
+W naszym projekcie zdecydowaliśmy się wykorzystać autorski algorytm uczenia maszynowego oparty o naiwny klasyfikator Bayesa. Klasyfikator został nauczony na zbiorze zapytań DNS wygenerowanych i przechwyconych przez nas podczas kilku tygodni codziennego użytkowania naszych domowych komputerów. Szczegółowy opis algorytmu znajduje się w sekcji \ref{sec:plugin} 
 
 \section{Scenariusz projektowy}
-Zaplanowaliśmy następujący scenariusz projektowy: firma B-Cyb S.A dysponuje siecią firmową, działającą w domenie \texttt{bcyb.com}. W ramach świadczonych usług, udostępnia światu dwie usługi sieciowe, dostępne pod adresami, kolejno: \texttt{s1.bcyb.com} oraz \texttt{s1.bcyb.com}. Dostęp do firmowej sieci chroniony jest za pomocą restrykcyjnie skonfigurowanego firewalla, jak również systemu IDS/IPS Snort, filtrującego wszelki ruch przepływający przez sieć. Ponieważ firma B-Cyb obawia się ataku metodą tunelowania DNS, zakupiła od młodego zespołu specjalistów (Kant Security sp. z.o.o) dodatkowy moduł systemu Snort, mający wykrywać i blokować złośliwą transmisję. W ramach sieci firmowej została wydzielona podsieć, chroniona -- w celach testowych -- przy użyciu nowego modułu. 
+Zaplanowaliśmy następujący scenariusz projektowy: firma B-Cyb S.A dysponuje siecią korporacyjną, działającą w domenie \texttt{bcyb.com}. W ramach świadczonych usług, posiada dwa publicznie dostępne serwery HTTP, kolejno: \texttt{s1.bcyb.com} oraz \texttt{s1.bcyb.com}. Dostęp do firmowej sieci chroniony jest za pomocą firewalla działającego na firmowym routerze, jak również z użyciem systemu IDS/IPS Snort, filtrującego ruch przepływający przez sieć. Ponieważ firma B-Cyb obawia się ataku metodą tunelowania DNS, zakupiła od młodego zespołu specjalistów (Kant Security sp. z.o.o) dodatkowy moduł systemu Snort, mający wykrywać i blokować tego rodzaju ataki. W ramach sieci firmowej została wydzielona podsieć, chroniona -- w celach testowych -- przy użyciu nowego modułu. 
 
-Na firmowych serwerach znajduje się jednak złośliwe oprogramowanie, którego zadaniem jest przetransmitować na serwery atakującego wykradzione pliki \texttt{/etc/shadow}. Ponieważ wyprowdzenie danych poza sieć za pomocą protokołu TCP jest niemożliwe, atakujący zdecydowali się zastosować właśnie tunelowanie DNS. Podczas próby przesłania wykradzionych haseł, nowy moduł Snorta od zespołu Kant Security wykryje i zablokuje złośliwą transmisję. Natomiast podsieć chroniona za pomocą dotychczasowej wersji systemu Snort nie wykryje ataku i pozwoli na wyprowadzenie haseł na zewnątrz. 
+Na firmowych serwerach znajduje się jednak złośliwe oprogramowanie, którego zadaniem jest przetransmitować na serwery atakującego wykradzione pliki \texttt{/etc/shadow}. Ponieważ wyprowadzenie danych poza sieć za pomocą protokołu TCP jest niemożliwe, atakujący zdecydowali się zastosować właśnie tunelowanie DNS. Podczas próby przesłania wykradzionych haseł, nowy moduł Snorta od zespołu Kant Security wykryje i zablokuje złośliwą transmisję. Natomiast podsieć chroniona za pomocą dotychczasowej wersji systemu Snort nie wykryje ataku i pozwoli na wyprowadzenie haseł na zewnątrz. 
 
 Całość infrastruktury projektowej została zainstalowana przez nas na maszynach wirtualnych VMware i obejmuje łącznie 9 hostów, znajdujących się pod kontrolą systemu Fedora 30. Szczegółowa topologia sieci znajduje się na rys. \ref{fig:topologia}. 
 \begin{figure}[!h] \centering
@@ -65,22 +65,27 @@ Całość infrastruktury projektowej została zainstalowana przez nas na maszyna
 	\caption{Schemat ideowy sieci, realizującej przyjęty scenariusz projektowy.} \label{fig:topologia}
 \end{figure}
 Przygotowana infrastruktura składa się z następujących urządzeń: 
+\begin{itemize}
+	\item router ROS: domyślna brama sieciowa dla sieci firmowej, działa pod kontrolą systemu MikroTik RouterOS i obsługuje zaporę sieciową;
+	\item IDNS: firmowy serwer DNS;
+	\item SRV1 i SRV2: publicznie dostępne serwery HTTP;
+	\item IPS1 i IPS2: hosty systemu Snort, działające w trybie inline i filtrujące ruch przechodzący przez sieć;
+	\item USR1 i USR2: komputery użytkowe, służące pracownikom firmy do wykonywania obowiązków służbowych, w tym zarządzania pozostałymi hostami;
+	\item MDNS: komputer atakującego, stanowiący punkt odbiorczy ukrytej komunikacji. 
+\end{itemize}
+Zapora sieciowa posiada następującą konfigurację:
 \begin{enumerate}
-	\item Router ROS: domyślna brama sieciowa dla sieci firmowej. Działa pod kontrolą systemu MikroTik RouterOS i obsługuje zaporę sieciową. Zapora posiada następującą konfigurację:
-	\begin{enumerate}
-		\item sieć firmowa (corporate network, 10.0.0.0/8) podzielona jest na strefę zdemilitaryzowaną (DMZ) oraz sieć wewnętrzną (INET);
-		\item strefa zdemilitaryzowana obejmuje publicznie dostępne serwery DNS (IDNS) i HTTP (SRV1, SRV2), jak również chroniące je hosty systemu Snort (IPS1, IPS2).
-		\begin{itemize}
-			\item ruch wchodzący: dopuszczony jest jedynie ruch realizujący świadczone usługi, oraz ruch SSH pochodzący z sieci INET;
-			\item ruch wychodzący: zabronione jest inicjowanie ruchu w obrębie DMZ, z wyjątkiem zapytań DNS oraz ruchu wychodzącego do serwerów zawierających repozytoria Fedory. Dopuszczony jest zatem jedynie ruch wymagany do pobierania aktualizacji oprogramowania systemowego;
-		\end{itemize}
-		\item sieć wewnętrzna obejmuje dwa komputery wyposażone w graficzny interfejs użytkownika (USR1, USR2), służące pracownikom firmy do wykonywania obowiązków służbowych, w szczególności zarządzania hostami znajdującymi się w obrębie DMZ. Zarządzanie odbywa się tylko i wyłącznie za pomocą protkołu SSH.
-		\begin{itemize}
-			\item ruch wchodzący: inicjowanie ruchu pochodzącego spoza sieci INET jest zabronione w każdym przypadku i na wszystkich portach;
-			\item ruch wychodzący: co do zasady nie jest filtrowany, z wyjątkiem rzecz jasna ograniczeń wymuszonych przez zaporę ogniową dla ruchu wchodzącego do DMZ.
-		\end{itemize}
-	\end{enumerate}
-	\item MDNS: maszyna atakującego. Atakujący rejestruje własną domenę \texttt{best-malware.com} i tworzy dla niej serwer autorytatywny, zainstalowany właśnie na maszynie MDNS (ang. \textit{malicious DNS}). Serwer ten stanowi punkt odbiorczy ukrytej komunikacji. 
+	\item sieć firmowa (corporate network, 10.0.0.0/8) podzielona jest na strefę zdemilitaryzowaną (DMZ) oraz sieć wewnętrzną (INET);
+	\item strefa zdemilitaryzowana: obejmuje publicznie dostępne serwery DNS i HTTP (IDNS, SRV1, SRV2), jak również chroniące je hosty systemu Snort.
+	\begin{itemize}
+		\item ruch wchodzący: dopuszczony jest jedynie ruch realizujący świadczone usługi, oraz ruch SSH pochodzący z sieci INET;
+		\item ruch wychodzący: zabronione jest inicjowanie ruchu w obrębie DMZ, z wyjątkiem zapytań DNS oraz ruchu wychodzącego do serwerów zawierających repozytoria Fedory. Dopuszczony jest zatem jedynie ruch wymagany do pobierania aktualizacji oprogramowania systemowego;
+	\end{itemize}
+	\item sieć wewnętrzna: obejmuje komputery służbowe USR1 i USR2:
+	\begin{itemize}
+		\item ruch wchodzący: jest zasadniczo zabroniony w każdym przypadku i na wszystkich portach, dopuszczony jest jednak rzecz jasna ruch powrotny w ramach połączeń zainicjowanych przez hosty sieci INET (connection-state=establieshed,related).
+		\item ruch wychodzący: co do zasady nie jest filtrowany, z wyjątkiem ograniczeń wymuszonych przez zaporę dla ruchu wchodzącego do DMZ.
+	\end{itemize}
 \end{enumerate}
 Z uwagi na nietrywialną złożoność wirtualizowanej infrastruktury, istotne jest określenie wymagań sprzętowych. Szczególnie ważna jest ilość pamięci operacyjnej, wymagana do działania poszczególnych hostów:
 \begin{itemize}
@@ -89,14 +94,31 @@ Z uwagi na nietrywialną złożoność wirtualizowanej infrastruktury, istotne j
 	\item serwery HTTP (SRV1, SRV2) zajmują po 512 MB pamięci;
 	\item do działania serwera DNS (IDNS) konieczne jest 512 MB, a dla routera ROS -- 256 MB pamięci RAM.
 \end{itemize}
-Doliczając do tego pamieć systemu gospodarza okazuje się, że dla zwirtualizowania całej wymaganej infrastruktury niezbędne jest co najmniej 12 GB pamięci operacyjnej. W praktyce będzie to zazwyczaj 16 GB. 
+Doliczając do tego pamięć systemu gospodarza okazuje się, że dla uruchomienia całej wymaganej infrastruktury niezbędne jest co najmniej 12 GB pamięci operacyjnej. W praktyce będzie to zazwyczaj 16 GB. 
 
 \section{Implementacja} \label{sec:plugin}
 
 \subsection{Aplikacja nadawcza i odbiorcza}
-
+Aplikacje nadawcza i odbiorcza, realizujące transmisję metodą tunelowania DNS, znajdują się w repozytorium projektu w katalogu \texttt{./dns\_tools}:
+\begin{itemize}
+	\item skrypt \texttt{dnsenc.sh} stanowi aplikację nadawczą i przyjmuje dwa argumenty, kolejno: plik do wysłania i domenę docelową. Jego działanie polega na zakodowaniu wysyłanego pliku w formacie base32 i podzieleniu go na 8-znakowe fragmenty. Każdy fragment wysyłany jest następnie jako subdomena zapytania DNS, zgodnie z metodą opisaną w rozdziale \ref{sec:2}. Zapytania DNS generowane są za pomocą dostępnego w systemie Linux narzędzia \texttt{nslookup}. 
+	\item skrypt \texttt{dnsdec.js} jest napisany jako skrypt NodeJS i stanowi aplikację odbiorczą. Przyjmuje jeden argument: domenę, dla której nasłuchujemy przychodzących zapytań. Zdekodowane dane wypisywane są domyślnie na standardowe wejście, skąd mogą zostać przekierowane do pliku. 
+\end{itemize}
 
 \subsection{Wtyczka systemu Snort}
+
+\subsubsection{Struktura plików źródłowych}
+Narzędzia służące do wykrywania tunelowania DNS znajdują się w katalogu \texttt{./ips\_dns\_tunnel}. W podkatalogach \texttt{bayes}, \texttt{snort\_plugin} oraz \texttt{snortd} znajdują się kolejno:
+\begin{itemize}
+	\item \texttt{bayes}: 
+	\item \texttt{snort\_plugin}:
+	\item  \texttt{snortd}: 
+\end{itemize} 
+
+\subsubsection{Algorytm klasyfikacji}
+
+
+\section{Testy}
 
 
 \section{Podsumowanie} \label{sec:summary}
