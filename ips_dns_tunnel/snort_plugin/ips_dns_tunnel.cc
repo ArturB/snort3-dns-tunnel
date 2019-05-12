@@ -47,6 +47,7 @@ static THREAD_LOCAL ProfileStats dns_tunnel_perf_stats;
 #define DEFAULT_SCORE 0
 #define MIN_DNS_SIZE 12
 #define INIT_NGRAM_NUM 32768
+#define INIT_WLIST_SIZE 4
 
 
 
@@ -102,6 +103,7 @@ struct DnsTunnelOptionParams {
   u_int32_t bucketlen;      //size of domains bucket
   u_int8_t verbose;         //verbose level
   char* datafile;     //file with n-gram weights
+  char* whitelist;
   char* logfile;
   char* logprefix;
 };
@@ -117,6 +119,12 @@ struct DnsTunnelNgFreqs {
   u_int8_t nglen;                 //ngram record length
 };
 
+enum DnsTunnelDnsReputation {
+  BAD = 0,
+  UNKNOWN = 1,
+  GOOD = 2
+};
+
 struct DnsTunnelDnsRankRecordSub {
   struct DnsTunnelDnsRankRecordSub* next;
   char* domain;
@@ -129,7 +137,7 @@ struct DnsTunnelDnsRankRecord {
   struct DnsTunnelDnsRankRecord* next;
   struct DnsTunnelDnsRankRecordSub* subdomain;
   u_int8_t off;
-  bool bad;
+  enum DnsTunnelDnsReputation rep;
 };
 
 struct DnsTunnelDnsRank {
@@ -224,7 +232,7 @@ DnsTunnelPacket::~DnsTunnelPacket(){
 class DnsTunnelOption : public IpsOption
 {
 public:
-    DnsTunnelOption(const DnsTunnelOptionParams& c, const DnsTunnelNgFreqs &f);
+    DnsTunnelOption(const DnsTunnelOptionParams& c, const DnsTunnelNgFreqs &f, char **wlist);
     ~DnsTunnelOption();
 
     uint32_t hash() const override;
@@ -246,7 +254,7 @@ private:
     FILE* logfile;
 };
 
-DnsTunnelOption::DnsTunnelOption(const DnsTunnelOptionParams &c, const DnsTunnelNgFreqs &f) : IpsOption(s_name){
+DnsTunnelOption::DnsTunnelOption(const DnsTunnelOptionParams &c, const DnsTunnelNgFreqs &f, char** wlist) : IpsOption(s_name){
   config.scorethreshold = c.scorethreshold;
   config.sizethreshold = c.sizethreshold;
   config.maxbuffersize = c.maxbuffersize;
@@ -255,6 +263,7 @@ DnsTunnelOption::DnsTunnelOption(const DnsTunnelOptionParams &c, const DnsTunnel
   config.minreqsize = c.minreqsize;
   config.bucketlen = c.bucketlen;
   config.datafile = c.datafile;
+  config.whitelist = c.whitelist;
   config.logfile = c.logfile;
   config.logprefix = c.logprefix;
   config.verbose = c.verbose;
@@ -273,6 +282,17 @@ DnsTunnelOption::DnsTunnelOption(const DnsTunnelOptionParams &c, const DnsTunnel
   rank.data = (struct DnsTunnelDnsRankRecord**)malloc(sizeof(struct DnsTunnelDnsRankRecord*)*rank.recnum);
   for (int i = 0 ; i < rank.recnum ; ++i)
     rank.data[i] = nullptr;
+
+  if (wlist){
+    while (*wlist){
+      DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Option::wlist : %s\n", *wlist);
+      struct DnsTunnelDnsRankRecord* r = pushDnsRecord(*wlist,0);
+      if (r != nullptr)
+        r->rep = DnsTunnelDnsReputation::GOOD;
+      free(*wlist);
+      ++wlist;
+    }
+  }
 }
 
 DnsTunnelOption::~DnsTunnelOption(){
@@ -315,6 +335,9 @@ bool DnsTunnelOption::operator==(const IpsOption& ips) const
           config.minreqsize == rhs.config.minreqsize &&
           config.bucketlen == rhs.config.bucketlen &&
           config.verbose == rhs.config.verbose &&
+          (config.whitelist == rhs.config.whitelist ||
+           (config.whitelist != nullptr && rhs.config.whitelist != nullptr &&
+            strcmp(config.whitelist,rhs.config.whitelist) == 0)) &&
           strcmp(config.datafile,rhs.config.datafile) == 0 &&
           strcmp(config.logfile,rhs.config.logfile) == 0 &&
           strcmp(config.logprefix,rhs.config.logprefix) == 0);
@@ -360,7 +383,7 @@ struct DnsTunnelDnsRankRecord* DnsTunnelOption::pushDnsRecord(const char *s, u_i
   (*r)->next = nullptr;
   (*r)->subdomain = nullptr;
   (*r)->off = off;
-  (*r)->bad = false;
+  (*r)->rep = DnsTunnelDnsReputation::UNKNOWN;
 
   DnsLog_log(DNS_LOG_DEBUG,". . -- pushRecord : new [%s]\n",(*r)->domain);
 
@@ -372,31 +395,39 @@ double DnsTunnelOption::getNgScore(char *s, u_int8_t len){
   int off = 0;
   if (len < config.minreqsize)
     return 0;
-  while (off < len){
+  if (len < config.windowsize){
     double score = 0;
-    int limiter = config.windowsize;
-
-    if (len-off < config.windowsize)
-      off = len-config.windowsize;
-    if (off < 0){
-      limiter+=off;
-      off=0;
-    }
-
-    for (int i = 0 ; i <= limiter-freqs.nglen ; ++i){
+    for (int i = 0 ; i <= len-freqs.nglen ; ++i){
       unsigned long ind = ngBinSearch(s+off+i);
       if (ind < freqs.ngnum){
         DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- getNgScore : [%s] %lf\n",freqs.data[ind].ng,freqs.data[ind].score);
         score+=freqs.data[ind].score;
-      }
+      } else
+        DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- getNgScore : [unknown] 0\n");
     }
-    off+=limiter;
-    if (off > len)
-      off = len-freqs.nglen;
-    if (score < worst)
-      worst = score;
+    DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- ngShortScore : %lf\n",score);
+    return score;
+  } else {
+    DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- ngVariantB\n");
+    while (off <= len-config.windowsize){
+      double score = 0;
+
+      for (int i = 0 ; i <= config.windowsize-freqs.nglen ; ++i){
+        unsigned long ind = ngBinSearch(s+off+i);
+        if (ind < freqs.ngnum){
+          DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- getNgScore : [%s] %lf\n",freqs.data[ind].ng,freqs.data[ind].score);
+          score+=freqs.data[ind].score;
+        } else
+          DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- getNgScore : [unknown] 0\n");
+      }
+      off++;
+      DnsLog_log(DNS_LOG_DEBUG_FULL,". . . -- ngLongScore : %lf\n",score);
+      if (score < worst)
+        worst = score;
+    }
+    return worst;
   }
-  return worst;
+  return 0;
 }
 
 u_int32_t DnsTunnelOption::pushDnsRecordSub(const char *s, u_int8_t len, struct DnsTunnelDnsRankRecord *r){
@@ -489,19 +520,25 @@ bool DnsTunnelOption::isBad(char *s){
     return 0;
   }
 
+  s[dot1]=0;
   r = pushDnsRecord(s,dot3+1);
-  if (r == nullptr || r->bad){
+  if (r == nullptr || r->rep == DnsTunnelDnsReputation::BAD){
     DnsLog_log(DNS_LOG_INFO_BAD,r!=nullptr?". -- isBad : early BAD [%s]\n":". -- isBad : FAIL [%s]\n",s);
     return true;
   }
 
+  if (r->rep == DnsTunnelDnsReputation::GOOD){
+    DnsLog_log(DNS_LOG_INFO_ALL,". -- isBad : early GOOD [%s]\n",s);
+    return false;
+  }
+
   if (pushDnsRecordSub(s,dot3,r) > config.sizethreshold){
     DnsLog_log(DNS_LOG_INFO_BAD,". -- isBad : late BAD [%s]\n",s);
-    r->bad = true;
+    r->rep = DnsTunnelDnsReputation::BAD;
   } else
-    DnsLog_log(DNS_LOG_INFO_ALL,". -- isBad : GOOD [%s]\n",s);
+    DnsLog_log(DNS_LOG_INFO_ALL,". -- isBad : late GOOD [%s]\n",s);
 
-  return r->bad;
+  return r->rep == DnsTunnelDnsReputation::BAD;
 }
 
 /* HERE WE PERFORM ACTUAL MATCHING */
@@ -545,6 +582,7 @@ static const Parameter s_params[] =
     { "bucketlen",      Parameter::PT_INT, "1024:", nullptr, "Bucket size for domains storage" },
     { "verbose",        Parameter::PT_INT, "1:8", nullptr, "Verbosity level (requires logfile)" },
     { "datafile",       Parameter::PT_STRING, nullptr, nullptr, "File with n-gram scores" },
+    { "whitelist",      Parameter::PT_STRING, nullptr, nullptr, "File with whitelisted domains" },
     { "logfile",        Parameter::PT_STRING, nullptr, nullptr, "Log file" },
     { "logprefix",      Parameter::PT_STRING, nullptr, nullptr, "Log prefix" },
 
@@ -567,11 +605,13 @@ public:
     { return DETECT; }
 
     bool readDataFile(const char* filename);
+    bool readWhitelist(const char* filename);
 
 public:
     struct DnsTunnelModuleParams config;
     struct DnsTunnelOptionParams nconfig;
     struct DnsTunnelNgFreqs nfreqs;
+    char** nwlist;
     FILE* logfile;
 };
 
@@ -590,11 +630,12 @@ bool DnsTunnelModule::begin(const char*, int, SnortConfig*)
     nconfig.sizethreshold = 32;
     nconfig.maxbuffersize = 256;
     nconfig.minbufferlen = 20;
-    nconfig.windowsize = 8;
-    nconfig.minreqsize = 4;
+    nconfig.windowsize = 12;
+    nconfig.minreqsize = 3;
     nconfig.bucketlen = 8192;
     nconfig.verbose = 0;
     nconfig.datafile = nullptr;
+    nconfig.whitelist = nullptr;
     nconfig.logfile = nullptr;
     nconfig.logprefix = nullptr;
     nfreqs.data = nullptr;
@@ -647,6 +688,16 @@ bool DnsTunnelModule::set(const char*, Value& v, SnortConfig*)
 
       return this->readDataFile(nconfig.datafile);
     }
+    else if ( v.is("whitelist") ){
+      if (nconfig.whitelist != nullptr)
+        return false;
+
+      const char* s = v.get_string();
+      nconfig.whitelist = (char*)malloc(strlen(s)+1);
+      strcpy(nconfig.whitelist,s);
+
+      return this->readWhitelist(nconfig.whitelist);
+    }
     else
       return false;
 
@@ -661,11 +712,11 @@ bool DnsTunnelModule::end(const char*, int, SnortConfig*){
     return false;
   }
   if (nconfig.minreqsize < nfreqs.nglen){
-    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR minreqsize %d >= %d\n",nconfig.minreqsize,nfreqs.nglen);
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR minreqsize lower than ngram length (%d < %d)\n",nconfig.minreqsize,nfreqs.nglen);
     return false;
   }
   if (nconfig.windowsize < nfreqs.nglen){
-    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR windowsize %d >= %d\n",nconfig.windowsize,nfreqs.nglen);
+    DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::End::ERROR windowsize lower than ngram length (%d >= %d)\n",nconfig.windowsize,nfreqs.nglen);
     return false;
   }
 
@@ -731,6 +782,58 @@ bool DnsTunnelModule::readDataFile(const char *filename){
   return true;
 }
 
+bool DnsTunnelModule::readWhitelist(const char *filename){
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadWhiteList (%s)\n",filename);
+  char dom[255];
+
+  FILE *fp;
+
+  if((fp = fopen(filename, "r")) == NULL)
+      return false;
+
+  int csize = INIT_WLIST_SIZE;
+  int cur = 0;
+  int len, ret;
+  nwlist = (char**)malloc(sizeof(char*)*csize);
+  if (nwlist == nullptr)
+    return false;
+  nwlist[cur]=nullptr;
+
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadWhiteList::beginRead\n");
+
+  while (true) {
+    DnsLog_log(DNS_LOG_STARTUP_VERBOSE,"--- CTOR-Module::ReadWhiteList::line\n");
+    if (cur == csize-1){
+      DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadWhiteList::realloc\n");
+      char** newwlist = (char**)realloc(nwlist, sizeof(char*)*csize*2);
+      if (newwlist == nullptr){
+        free(nwlist);
+        nwlist = nullptr;
+        return false;
+      }
+      nwlist = newwlist;
+      csize*=2;
+    }
+
+    ret = fscanf(fp, "%254s\n", dom);
+    DnsLog_log(DNS_LOG_STARTUP_VERBOSE,"--- CTOR-Module::ReadWhiteList::fscanf %d %d %s\n",cur,ret,dom);
+    if (ret != 1)
+      break;
+    len = strlen(dom);
+
+    nwlist[cur] = (char*)malloc(sizeof(char)*len+1);
+    nwlist[cur][0]=0;
+    strncat(nwlist[cur],dom,255);
+    DnsLog_log(DNS_LOG_STARTUP_VERBOSE,"--- CTOR-Module::ReadWhiteList::wlist %s", nwlist[cur]);
+    ++cur;
+    nwlist[cur]=0;
+  }
+  fclose(fp);
+
+  DnsLog_log(DNS_LOG_STARTUP,"--- CTOR-Module::ReadWhiteList::success (%d)\n",cur);
+  return true;
+}
+
 //-------------------------------------------------------------------------
 // api methods
 //-------------------------------------------------------------------------
@@ -748,7 +851,7 @@ static void mod_dtor(Module* m)
 static IpsOption* dns_tunnel_ctor(Module* p, OptTreeNode*)
 {
     DnsTunnelModule* m = (DnsTunnelModule*)p;
-    return new DnsTunnelOption(m->nconfig, m->nfreqs);
+    return new DnsTunnelOption(m->nconfig, m->nfreqs, m->nwlist);
 }
 
 static void dns_tunnel_dtor(IpsOption* p)

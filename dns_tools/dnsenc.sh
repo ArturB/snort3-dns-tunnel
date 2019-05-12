@@ -1,6 +1,10 @@
 #!/bin/bash
 
+<<<<<<< HEAD
 chunk=4
+=======
+chunk=8
+>>>>>>> 1be65f35fb7e9891fffc5ac264537e8e4c89fcaf
 domain=$2
 file=$1
 
