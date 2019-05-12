@@ -1,6 +1,6 @@
 #!/bin/bash
 
-chunk=24
+chunk=4
 domain=$2
 file=$1
 
