@@ -192,11 +192,9 @@ czyli $0.0000028\%$ na zapytanie. Dla średniej ilości zapytań rzędu kilka ty
 \section{Testy}
 Jak wspomniano, w rzeczywistości założenia procesu Poissona są niespełnione i prawdopodobieństwo fałszywego alarmu jest o 3-4 rzędy wielkości większe od wartości teoretycznej. Na dodatek, jest ono silnie zależne od konkretnej witryny. Niektóre strony, jak np. Cloudflare, generują bardzo duże ilości subdomen o charakterze danych binarnych i są szybko blokowane, niezależnie od długości tablicy i pozostałych parametrów klasyfikatora. Z tego względu, nasza wtyczka posiada również funkcję białej listy: listy zaufanych domen, które nie podlegają blokowaniu. Użytkownik końcowy ma możliwość dostosowania działania wtyczki do swoich własnych potrzeb. 
 
-Oprócz prawidłowej klasyfikacji zaufanych zapytań DNS, zadaniem wtyczki jest również blokować zapytania niepożądane. 
-
-
+Oprócz prawidłowej klasyfikacji zaufanych zapytań DNS, zadaniem wtyczki jest również blokować zapytania niepożądanych. Skuteczność wtyczki w tym zakresie jest znaczna; jak przedstawiono na rys. \ref{fig:engrams-hist}, statystyka engramów dla zapytań złośliwych różni się znacznie od ,,nauralnych'' i ich odróżnienie nie stanowi trudności. Z uwagi na przyjęty próg blokady domeny $L = 72$ znaki oraz precyzję klasyfikatora rzędu 0.8-0.9, zablokowanie złośliwej transmisji następuje już po kilku-kilkunastu zapytaniach. Pozwala to na przesłanie co najwyżej kilkudziesięciu bajtów danych. Odpowiednia demostracja działania zostanie przedstawiona podczas prezentacji na koniec semestru. 
 
 \section{Podsumowanie} \label{sec:summary}
-Celem projektu było przygotowanie wtyczki dla systemu IDS/IPS Snort, służącej do blokowania ukrytej transmisji metodą tunelowania DNS. Uzyskane wyniki uznajemy za zadowalające
+Celem projektu było przygotowanie wtyczki dla systemu IDS/IPS Snort, służącej do blokowania ukrytej transmisji metodą tunelowania DNS. Uzyskane wyniki uznajemy za zadowalające, zarówno pod względem przepuszczania prawidłowych zapytań jak i blokowania zapytań złośliwych. Projekt był szczególnie rozwijający z uwagi na konieczność skonfigurowania nietrywialnej sieci korporacyjnej oraz zestawu jej zabezpieczeń: zapory ogniowej oraz systemu IDS/IPS Snort 3. 
 
 \end{document}
