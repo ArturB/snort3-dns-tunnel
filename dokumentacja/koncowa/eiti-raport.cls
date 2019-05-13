@@ -12,6 +12,10 @@
 \RequirePackage{amsfonts}
 \RequirePackage{amsmath}
 \RequirePackage{amsthm}
+\RequirePackage[
+	backend=bibtex, 
+	bibstyle=ieee
+]{biblatex}
 \RequirePackage[font=small, labelfont=bf]{caption}
 \RequirePackage{fancyhdr}
 \RequirePackage{float}

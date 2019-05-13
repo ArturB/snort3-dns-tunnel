@@ -1,0 +1,39 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 2.9 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{none/global//global/global}
+  \entry{infosec}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=MR}{%
+         family={Mazerik},
+         familyi={M\bibinitperiod},
+         given={Ryan},
+         giveni={R\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{MR1}
+    \strng{fullhash}{MR1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{howpublished}{Wpis na blogu. Dostęp zdalny (13.05.2019):
+  \url{https://resources.infosecinstitute.com/dns-tunnelling/}}
+    \field{title}{{DNS} {T}unneling}
+    \field{year}{2019}
+  \endentry
+\enddatalist
+\endinput
