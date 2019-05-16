@@ -48,21 +48,21 @@ Tunelowanie DNS należy do metod steganograficznych i pozwala na prowadzenie nie
 Skuteczność tego ataku wynika z kluczowej roli, jaką odgrywa DNS w komunikacji internetowej. Jego zablokowanie może uniemożliwić działanie sieci, dlatego zapytania DNS bardzo rzadko są ograniczane przez administratorów, i to nawet w sieciach o restrykcyjnych wymogach bezpieczeństwa. 
 
 \subsection{Metody wykrywania} \label{sec:wykrywanie}
-Aby skutecznie zablokować transmisję wykorzystującą tunelowanie DNS, konieczne jest wiarygodne odróżnienie złośliwych zapytań DNS od tych prawidłowych. Stosuje się w tym celu różne heurystyki, oparte m.in. o:
+Aby skutecznie zablokować transmisję wykorzystującą tunelowanie DNS, konieczne jest wiarygodne odróżnienie złośliwych zapytań DNS od tych prawidłowych. Można w tym celu stosować różne heurystyki, oparte m.in. o \cite{sans-dns}:
 \begin{itemize}
 	\item analizę długości i entropii zapytania -- większość ,,normalnych'' domen nie przekracza kilkunastu znaków i charakteryzuje się niewielką entropią, typową dla słów pochodzących z języka naturalnego;
 	\item analizę częstości -- znaczący wzrost liczby wykonywanych zapytań DNS może sugerować, że część z nich jest niepożądana;
 	\item metody słownikowe -- ,,prawdziwe'' domeny zazwyczaj składają się ze słów pochodzących z języka naturalnego lub zbudowanych na ich podstawie neologizmów;
 	\item uczenie maszynowe.
 \end{itemize}
-W naszym projekcie zdecydowaliśmy się wykorzystać autorski algorytm uczenia maszynowego oparty o naiwny klasyfikator Bayesa. Klasyfikator został nauczony na zbiorze zapytań DNS wygenerowanych i przechwyconych przez nas podczas kilku tygodni codziennego użytkowania naszych domowych komputerów. Szczegółowy opis algorytmu znajduje się w rozdziale \ref{sec:implementacja-plugin} 
+W naszym projekcie zdecydowaliśmy się wykorzystać autorski algorytm uczenia maszynowego oparty o naiwny klasyfikator Bayesa. Klasyfikator został nauczony na zbiorze zapytań DNS wygenerowanych i przechwyconych przez nas podczas kilku tygodni codziennego użytkowania naszych domowych komputerów. Szczegółowy opis algorytmu znajduje się w rozdziale \ref{sec:implementacja-bayes} 
 
 \section{Scenariusz projektowy} \label{sec:scenariusz}
 Zaplanowaliśmy następujący scenariusz projektowy: firma B-Cyb S.A dysponuje siecią korporacyjną, działającą w domenie \texttt{bcyb.com}. W ramach świadczonych usług, posiada dwa publicznie dostępne serwery HTTP, kolejno: \texttt{s1.bcyb.com} oraz \texttt{s2.bcyb.com}. Dostęp do firmowej sieci chroniony jest za pomocą firewalla działającego na firmowym routerze oraz systemu IDS/IPS Snort, filtrującego ruch przepływający przez sieć. Ponieważ firma B-Cyb obawia się ataku metodą tunelowania DNS, zakupiła od młodego zespołu specjalistów (Kant Security sp. z.o.o) dodatkowy moduł systemu Snort, mający wykrywać i blokować tego rodzaju ataki. W ramach sieci firmowej została wydzielona podsieć, chroniona -- w celach testowych -- przy użyciu nowego modułu. 
 
 Na firmowych serwerach znajduje się złośliwe oprogramowanie, którego zadaniem jest przetransmitować na serwery atakującego wykradzione pliki \texttt{/etc/shadow}. Ponieważ wyprowadzenie danych poza sieć za pomocą protokołu TCP jest niemożliwe, atakujący zdecydowali się zastosować właśnie tunelowanie DNS. Podczas próby przesłania wykradzionych haseł, nowy moduł Snorta od zespołu Kant Security wykryje i zablokuje złośliwą transmisję. Natomiast podsieć chroniona za pomocą dotychczasowej wersji systemu Snort nie wykryje ataku i pozwoli na wyprowadzenie haseł na zewnątrz. 
 
-Całość infrastruktury projektowej została zainstalowana przez nas na maszynach wirtualnych pod kontrolą VMware Workstation i obejmuje łącznie 9 hostów, znajdujących się pod kontrolą systemu Fedora 30. Szczegółowa topologia sieci znajduje się na rys. \ref{fig:topologia}. 
+Całość infrastruktury projektowej została zainstalowana przez nas na maszynach wirtualnych VMware Workstation i obejmuje łącznie 9 hostów, znajdujących się pod kontrolą systemu Fedora 30. Szczegółowa topologia sieci znajduje się na rys. \ref{fig:topologia}. 
 \begin{figure}[!h] \centering
 	\includegraphics[width=0.9\linewidth]{img/BCYB_topologia.png}
 	\caption{Schemat ideowy sieci, realizującej przyjęty scenariusz projektowy.} \label{fig:topologia}
@@ -197,8 +197,8 @@ czyli $0.0000028\%$ na zapytanie. Dla średniej ilości zapytań rzędu kilkadzi
 Poprawność konfiguracji zapory sieciowej postanowiliśmy przetestować, wykonując na naszej sieci firmowej podstawowe testy penetracyjne. Testy wykonywane były na maszynie potencjalnego atakującego (MDNS) i polegały na skanowaniu sieci firmowej (10.0.0-2.0/24) za pomocą programów nmap i nessus. Przeprowadziliśmy następujące skanowania:
 \begin{itemize}
 	\item nmap: skanowanie SYN, które potwierdziło, że jedyne widoczne z zewnątrz porty to \texttt{s1.bcyb.com:80} i \texttt{s2.bcyb.com:80} (rys. \ref{fig:nmap});
-	\item nmap: skanowanie XMAS, nie wykryło ono żadnych otwartych portów (wszystkie zostały oznaczone jako \texttt{open|filtered} -- rys. \ref{fig:nmap-xmas}); jest to zgodne z konfiguracją stanowego firewalla, który powinien zawsze odrzucać pakiety dające się sklasyfikować jako \texttt{connection-state=invalid}; 
-	\item skanowanie za pomocą skanera podatności Nessus: nie wykryto żadnych dodatkowych podatności, za pomocą których można by dokonać ataku na serwery SRV1 i SRV2 (rys. \ref{fig:nessus}); spośród 14 komunikatów, jakie Nessus wygenerował dla obu serwerów, wszystkie mają charakter jedynie informacyjny. 
+	\item nmap: skanowanie XMAS, nie wykryło ono żadnych otwartych portów (wszystkie zostały oznaczone jako \texttt{open|filtered} -- rys. \ref{fig:nmap-xmas}); jest to zgodne z konfiguracją stanowego firewalla, który powinien zawsze odrzucać pakiety typu \texttt{invalid}; 
+	\item skanowanie za pomocą skanera podatności Nessus: nie wykryto żadnych dodatkowych podatności, za pomocą których można by dokonać ataku na serwery SRV1 i SRV2 (rys. \ref{fig:nessus}); spośród 14 komunikatów, jakie Nessus wygenerował dla każdego z obu serwerów, wszystkie mają charakter jedynie informacyjny. 
 \end{itemize}
 
 \begin{figure}[!h] \centering
@@ -240,7 +240,7 @@ Jeśli chodzi o test precyzji, to skuteczność wtyczki w tym zakresie jest nie 
 \end{figure}
 
 \section{Podsumowanie} \label{sec:summary}
-Celem projektu było przygotowanie wtyczki dla systemu IDS/IPS Snort, służącej do blokowania ukrytej transmisji metodą tunelowania DNS. Pomimo doświadczonych problemów, zwłaszcza ze skuteczną klasyfikacją ,,naturalnych'' zapytań, uzyskane wyniki uznajemy za wysoce satysfakcjonujące. Dodatkowo, nie do przecenienia są rozwijające walory naszego projektu. Realizacja zadania pozwoliła nam sprawdzić w praktyce nasze umiejętności konfigurowania i zabezpieczenia przez atakami sieci korporacyjnych o nietrywialnej budowie. Mieliśmy możliwość poznania nowoczesnego systemu IDS/IPS Snort, i to zarówno od strony programisty jak i użytkownika. Dodatkowo interesujące było zastosowanie w obszarze cyberbezpieczeństwa algorytmów uczenia maszynowego i rozpoznawania tekstu. 
+Celem projektu było przygotowanie wtyczki dla systemu IDS/IPS Snort, służącej do blokowania złośliwej transmisji, prowadzonej metodą tunelowania DNS. Pomimo pewnych problemów, zwłaszcza ze skuteczną klasyfikacją ,,naturalnych'' zapytań, uzyskane wyniki uznajemy za wysoce satysfakcjonujące, zarówno pod kątem precyzji klasyfikatora jak i jego czułości. Nie do przecenienia są rozwijające walory naszego projektu. Realizacja zadania pozwoliła nam sprawdzić w praktyce nasze umiejętności konfigurowania sieci korporacyjnych o nietrywialnej budowie, jak również zabezpieczenia ich przez atakami . Mieliśmy możliwość poznania nowoczesnego systemu IDS/IPS Snort, tak od strony programisty jak i użytkownika. Dodatkowo interesujące było zastosowanie w obszarze cyberbezpieczeństwa algorytmów uczenia maszynowego i rozpoznawania tekstu. 
 
 \printbibliography
 

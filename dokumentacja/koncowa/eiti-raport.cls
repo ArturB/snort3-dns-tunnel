@@ -16,7 +16,10 @@
 	backend=bibtex, 
 	bibstyle=ieee
 ]{biblatex}
-\RequirePackage[font=small, labelfont=bf]{caption}
+\RequirePackage[
+	font=small, 
+	labelfont=bf
+]{caption}
 \RequirePackage{fancyhdr}
 \RequirePackage{float}
 \RequirePackage[T1]{fontenc}
@@ -39,6 +42,8 @@
 \RequirePackage{wrapfig}
 \RequirePackage{xcolor}
 \RequirePackage{xkeyval}
+
+\RequirePackage{csquotes}
 
 % Ddefine and process margin parameter
 % Default margin is 2.5 cm
