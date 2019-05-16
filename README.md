@@ -11,4 +11,7 @@ T2.1 Napisać moduł Snorta wykrywający steganograficzną transmisję danych me
 
 ## Topologia sieci demonstracyjnej
 
-![](https://gitlab.com/bcyb19l/kant-security/raw/master/img/BCYB-topologia.PNG)
+![](https://gitlab.com/bcyb19l/kant-security/blob/master/dokumentacja/koncowa/img/BCYB_topologia.png)
+
+## Dokumentacja projektu
+Dokumentacja wstępna znajduje się - jak łatwo się domysleć - w pliku [dok_wstepna.pdf](https://gitlab.com/bcyb19l/kant-security/blob/master/dok_wstepna.pdf), natomiast dokumentacja końcowa - w [dok_koncowa.pdf](https://gitlab.com/bcyb19l/kant-security/blob/master/dok_koncowa.pdf). 
