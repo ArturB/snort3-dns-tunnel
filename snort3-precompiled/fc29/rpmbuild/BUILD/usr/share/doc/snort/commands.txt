@@ -1,6 +1,0 @@
-* *appid.enable_debug*(proto, src_ip, src_port, dst_ip, dst_port): enable appid debugging
-* *appid.disable_debug*(): disable appid debugging
-* *packet_capture.enable*(filter): dump raw packets
-* *packet_capture.disable*(): stop packet dump
-* *packet_tracer.enable*(proto, src_ip, src_port, dst_ip, dst_port): enable packet tracer debugging
-* *packet_tracer.disable*(): disable packet tracer
